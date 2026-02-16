@@ -1,6 +1,6 @@
 mod uax29;
 
-pub use uax29::{Options as Uax29Options, tokenize as uax29_tokenize};
+pub use uax29::{WordOptions as Uax29WordBreakOptions, tokenize_words as uax29_tokenize_words};
 
 #[cfg(test)]
 mod tests {}

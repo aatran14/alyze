@@ -10,12 +10,12 @@ mod transitions;
 
 /// For backwards compatibility, require caller to pass in options struct.
 #[derive(Default, Clone)]
-pub struct Options {}
+pub struct WordOptions {}
 
 /// A tokenizer that implements UAX #29 word boundary rules, using a deterministic finite automaton
 /// (DFA) to efficiently determine word boundaries in Unicode text. Includes a number of fast-paths
 /// for common cases, e.g. ASCII.
-pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
+pub fn tokenize_words(text: &str, breakpoints: &mut Vec<usize>, _options: WordOptions) {
     if text.is_empty() {
         return;
     }
@@ -146,7 +146,7 @@ mod tests {
 
     use itertools::{EitherOrBoth, Itertools};
 
-    use crate::uax29::{Options, tokenize};
+    use crate::uax29::{WordOptions, tokenize_words};
 
     /// A helper enum to represent the expected sequence of codepoints and break points in a test case.
     #[derive(Debug, PartialEq)]
@@ -221,7 +221,7 @@ mod tests {
         let mut breakpoints = Vec::new();
         for t in test_cases {
             let input_string = t.codepoints_as_string();
-            tokenize(&input_string, &mut breakpoints, Options::default());
+            tokenize_words(&input_string, &mut breakpoints, WordOptions::default());
             let mut got_sequence = Vec::new();
             input_string
                 .char_indices()
@@ -265,7 +265,7 @@ mod tests {
     fn tokenizer_sanity() {
         fn assert_breaks(s: &str, expected: Vec<usize>) {
             let mut breakpoints = Vec::new();
-            tokenize(s, &mut breakpoints, Options::default());
+            tokenize_words(s, &mut breakpoints, WordOptions::default());
             assert_eq!(breakpoints, expected, "input: {:?}", s);
         }
 
