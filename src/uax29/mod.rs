@@ -23,11 +23,21 @@ pub fn tokenize_words(text: &str, breakpoints: &mut Vec<usize>, _options: WordOp
 
     let mut state = State::StartOfText;
     let mut deferred_break_pos = None;
-    let mut last_was_zwj = false;
     let mut pos = 0;
+
+    // WB4 says: X (Extend | Format | ZWJ)*	→	X
+    // To avoid adding _many_ `_AfterZWJ` variant states, we'll cheat a little by keeping track
+    // of this condition with a bool. More specifically, we need to conditionally break based on
+    // whether the previous character was a ZWJ.
+    //
+    // Example:
+    // 'a 🛑' -> break (ALetter -> Other)
+    // 'a ZWJ 🛑' -> no break (WB4)
+    let mut last_was_zwj = false;
 
     while pos < text.len() {
         // Fast path for ASCII, e.g. skip DFA all together when possible.
+        // Roughly a ~2x speedup on English Wikipedia.
         if matches!(
             state,
             State::ALetter | State::Numeric | State::ExtendNumLet | State::HLetter
