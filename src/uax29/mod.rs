@@ -8,6 +8,10 @@ use crate::uax29::{
 mod properties;
 mod transitions;
 
+/// For backwards compatibility, require caller to pass in options struct.
+#[derive(Default, Clone)]
+pub struct Options {}
+
 /// A tokenizer that implements UAX #29 word boundary rules, using a deterministic finite automaton
 /// (DFA) to efficiently determine word boundaries in Unicode text. Includes a number of fast-paths
 /// for common cases, e.g. ASCII.
@@ -23,6 +27,28 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
     let mut pos = 0;
 
     while pos < text.len() {
+        // Fast path for ASCII, e.g. skip DFA all together when possible.
+        if matches!(
+            state,
+            State::ALetter | State::Numeric | State::ExtendNumLet | State::HLetter
+        ) {
+            let scan_start = pos;
+            while pos < text.len() && bytes[pos] < 0x80 && WORD_CONTINUE[bytes[pos] as usize] {
+                pos += 1;
+            }
+            if pos > scan_start {
+                let last = bytes[pos - 1]; // Safe because we're not in State::StartOfText.
+                state = match last {
+                    b'0'..=b'9' => State::Numeric,
+                    b'_' => State::ExtendNumLet,
+                    _ => State::ALetter,
+                };
+                last_was_zwj = false;
+                continue;
+            }
+        }
+
+        // Fast path for ASCII, e.g. avoid chars().next(), and lookup word property from table.
         let b = bytes[pos];
         let (c, prop, char_len) = if b < 0x80 {
             (b as char, ASCII_WORD_BREAK_PROP[b as usize], 1usize)
@@ -38,7 +64,6 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
         // Each iteration, we consult the transition table to determine the next state
         // and whether to emit a breakpoint.
         let Transition(next_state, action) = TABLE[state as usize][prop as usize];
-
         match action {
             Action::Break => {
                 let boundary = pos;
@@ -94,9 +119,23 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
     breakpoints.push(text.len());
 }
 
-/// For backwards compatibility, require caller to pass in options struct.
-#[derive(Default, Clone)]
-pub struct Options {}
+// Lookup table for ASCII characters, which can be processed without the DFA.
+// Specifically, if we see a given ASCII character, can we just immediately skip to the next one?
+const WORD_CONTINUE: [bool; 128] = {
+    let mut t = [false; 128];
+    let mut i = 0u8;
+    loop {
+        t[i as usize] = match i {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' => true,
+            _ => false,
+        };
+        if i == 127 {
+            break;
+        }
+        i += 1;
+    }
+    t
+};
 
 #[cfg(test)]
 mod tests {
