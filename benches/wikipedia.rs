@@ -1,0 +1,120 @@
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
+
+use alyze::{Uax29Options, uax29_tokenize};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use parquet::{
+    file::reader::{FileReader, SerializedFileReader},
+    record::{Row, RowAccessor, reader::RowIter},
+    schema::types::Type,
+};
+
+criterion_group!(benches, wikipedia_benchmark);
+criterion_main!(benches);
+
+pub fn wikipedia_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("wikipedia");
+
+    let n_bytes = 64 << 20; // 64 MiB
+    let texts = load_n_bytes(n_bytes);
+
+    group.throughput(Throughput::Bytes(n_bytes));
+    group.sample_size(16);
+
+    group.bench_function("64 mib", |b| {
+        b.iter(|| {
+            let mut breakpoints = Vec::new();
+            for text in &texts {
+                uax29_tokenize(text, &mut breakpoints, Uax29Options::default());
+            }
+            std::hint::black_box(&breakpoints);
+        })
+    });
+
+    group.finish();
+}
+
+fn load_n_bytes(n: u64) -> Vec<String> {
+    let cache_dir = cache_dir();
+    let files_and_urls = parquet_files_and_urls();
+    let mut texts = Vec::new();
+    let mut total_bytes = 0;
+    for (file_name, url) in files_and_urls {
+        let file = download_file_with_cache(&file_name, &url, &cache_dir);
+        let reader = SerializedFileReader::new(file).expect("failed to create parquet reader");
+        let rows = iter_parquet_rows(Box::new(reader), &["text"]);
+        for row in rows {
+            let text = row.get_string(0).cloned().unwrap();
+            total_bytes += text.len() as u64;
+            texts.push(text);
+            if total_bytes >= n {
+                return texts;
+            }
+        }
+    }
+    panic!("not enough data in parquet files to reach {} bytes", n);
+}
+
+fn cache_dir() -> PathBuf {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".cache/wikipedia");
+    std::fs::create_dir_all(&dir).expect("failed to create cache directory");
+    dir
+}
+
+fn parquet_files_and_urls() -> Vec<(String, String)> {
+    let mut files_and_urls = Vec::new();
+    for i in 0..41 {
+        let file = format!("train-{:05}-of-00041.parquet", i);
+        let url = format!(
+            "https://huggingface.co/datasets/wikimedia/wikipedia/resolve/main/20231101.en/{}?download=true",
+            file
+        );
+        files_and_urls.push((file, url));
+    }
+    files_and_urls
+}
+
+fn download_file_with_cache(file_name: &str, url: &str, cache_dir: &Path) -> File {
+    let cache_file = cache_dir.join(file_name);
+    if !cache_file.exists() {
+        println!(
+            "wikipedia: downloading '{}' (from {}) for benchmark",
+            file_name, url
+        );
+        let response = ureq::get(url).call().expect("failed to download file");
+        let mut tmp_file = tempfile::Builder::new()
+            .tempfile_in(cache_dir)
+            .expect("failed to create temporary file");
+        std::io::copy(&mut response.into_body().into_reader(), &mut tmp_file)
+            .expect("failed to write response body to temporary file");
+        tmp_file
+            .as_file_mut()
+            .flush()
+            .expect("failed to flush temporary file");
+        tmp_file
+            .persist(&cache_file)
+            .expect("rename failed to move temporary file to cache");
+    }
+    File::open(cache_file).expect("failed to open cached file")
+}
+
+fn iter_parquet_rows(
+    reader: Box<dyn FileReader>,
+    column_names: &[&str],
+) -> impl Iterator<Item = Row> {
+    let parquet_metadata = reader.metadata();
+    let fields = parquet_metadata.file_metadata().schema().get_fields();
+    let mut selected_fields = fields.to_vec();
+    selected_fields.retain(|f| column_names.contains(&f.name()));
+    let schema_proj = Type::group_type_builder("schema")
+        .with_fields(selected_fields)
+        .build()
+        .unwrap();
+    RowIter::from_file_into(reader)
+        .project(Some(schema_proj))
+        .unwrap()
+        .map(|result| result.unwrap())
+}
