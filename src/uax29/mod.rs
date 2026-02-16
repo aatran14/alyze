@@ -70,9 +70,7 @@ pub fn tokenize_words(text: &str, breakpoints: &mut Vec<usize>, _options: WordOp
                 pos += char_len;
                 if last_was_zwj {
                     last_was_zwj = false;
-                    if prop == WordBreakProperty::ExtPictographic
-                        || WordBreakProperty::is_ext_pictographic(c)
-                    {
+                    if WordBreakProperty::is_ext_pictographic(c) {
                         continue; // transparent
                     }
                 }

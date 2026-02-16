@@ -25,7 +25,7 @@ macro_rules! word_break_property_enum {
 word_break_property_enum! {
     Other, ALetter, Format, Katakana, MidLetter, MidNum, Numeric,
     ExtendNumLet, CR, Extend, LF, MidNumLet, Newline,
-    RegionalIndicator, HebrewLetter, SingleQuote, DoubleQuote, ZWJ, WSegSpace, ExtPictographic,
+    RegionalIndicator, HebrewLetter, SingleQuote, DoubleQuote, ZWJ, WSegSpace,
 }
 
 /// ASCII characters are very common, so we pre-compute a lookup table for the first 128 code points.
@@ -197,13 +197,7 @@ pub fn lookup_word_break_property_from_dictionary(c: char) -> WordBreakProperty 
         WordBreak::DoubleQuote => WordBreakProperty::DoubleQuote,
         WordBreak::ZWJ => WordBreakProperty::ZWJ,
         WordBreak::WSegSpace => WordBreakProperty::WSegSpace,
-        WordBreak::Other => {
-            if EXT_PICT.contains(c) {
-                WordBreakProperty::ExtPictographic
-            } else {
-                WordBreakProperty::Other
-            }
-        }
+        WordBreak::Other => WordBreakProperty::Other,
         _ => unreachable!(),
     }
 }
