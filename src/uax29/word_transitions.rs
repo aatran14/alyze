@@ -1,7 +1,8 @@
-use crate::uax29::properties::WordBreakProperty;
+use crate::uax29::word_properties::WordBreakProperty;
 
 /// Helper to generate the State enum and associated constants.
 /// Ensures `ALL` and `NUM_VARIANTS` are always in sync with the actual variants.
+#[macro_export]
 macro_rules! state_enum {
     ($($variant:ident),* $(,)?) => {
         #[repr(u8)]

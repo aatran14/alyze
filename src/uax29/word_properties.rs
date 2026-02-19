@@ -204,7 +204,7 @@ pub fn lookup_word_break_property_from_dictionary(c: char) -> WordBreakProperty 
 
 #[cfg(test)]
 mod tests {
-    use crate::uax29::properties::{
+    use crate::uax29::word_properties::{
         ASCII_WORD_BREAK_PROP, WordBreakProperty, lookup_word_break_property_from_dictionary,
     };
 
