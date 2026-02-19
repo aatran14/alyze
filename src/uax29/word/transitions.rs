@@ -1,20 +1,4 @@
-use crate::uax29::word_properties::WordBreakProperty;
-
-/// Helper to generate the State enum and associated constants.
-/// Ensures `ALL` and `NUM_VARIANTS` are always in sync with the actual variants.
-#[macro_export]
-macro_rules! state_enum {
-    ($($variant:ident),* $(,)?) => {
-        #[repr(u8)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum State { $($variant),* }
-
-        impl State {
-            pub const ALL: &[Self] = &[$(Self::$variant),*];
-            pub const NUM_VARIANTS: usize = Self::ALL.len();
-        }
-    };
-}
+use crate::uax29::{Action, state_enum, word::properties::WordBreakProperty};
 
 // State values for the word break state machine. These are
 // an implementation detail of UAX#29, not documented in the spec.
@@ -41,26 +25,6 @@ impl State {
             | State::Newline => false,
         }
     }
-}
-
-/// Action is the result of a state transition, e.g. each transition
-/// advances to a new state & emits an action.
-#[derive(Clone, Copy)]
-#[repr(u8)]
-pub enum Action {
-    Break,
-    NoBreak,
-
-    /// Consider the following example: can't. If we hit the apostrophe, whether we break
-    /// depends on the next character. If it's a letter, we don't break (WB6). If it's not a letter,
-    /// we break before the apostrophe. When this action is taken, we store the potential break position
-    /// and defer the decision until we see the next character.
-    DeferredBreak,
-
-    // For implementing WB4, we need a way to make a char effectively invisible to the state machine,
-    // so we silently consume it and keep the same state. If the action is `Transparent`, the state
-    // of the `Transition` is ignored, and the next character is processed in the same state as the current character.
-    Transparent,
 }
 
 /// A transition in the word break state machine, which consists of a new state and an action to take.

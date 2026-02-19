@@ -1,4 +1,4 @@
-use crate::{state_enum, uax29::sentence_properties::SentenceBreakProperty};
+use crate::uax29::{Action, sentence::properties::SentenceBreakProperty, state_enum};
 
 // State values for the sentence break state machine. These are an
 // implementation detail of UAX#29, not in the spec.
@@ -13,24 +13,6 @@ impl State {
     pub const fn is_deferred(self) -> bool {
         matches!(self, State::SB8Pending)
     }
-}
-
-/// Action is the result of a state transition, e.g. each transition
-/// advances to a new state & emits an action.
-#[derive(Clone, Copy)]
-pub enum Action {
-    Break,
-    NoBreak,
-
-    // For implementing SB5, we need a way to make a char effectively invisible to the state machine,
-    // so we silently consume it and keep the same state. If the action is `Transparent`, the state
-    // of the `Transition` is ignored, and the next character is processed in the same state as the current character.
-    Transparent,
-
-    // For implementing SB8, we need to defer break decisions. When this action is taken, we emit a
-    // break at the previously-stored deferred position and re-examine the current character in the
-    // new state (pos does not advance).
-    DeferredBreak,
 }
 
 /// A transition in the sentence break state machine, which consists of a new state and an action to take.

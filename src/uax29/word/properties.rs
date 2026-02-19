@@ -3,29 +3,18 @@ use icu_properties::{
     props::{ExtendedPictographic, WordBreak},
 };
 
-/// Helper to generate the WordBreakProperty enum and associated constants.
-/// Ensures `ALL` and `NUM_VARIANTS` are always in sync with the actual variants.
-macro_rules! word_break_property_enum {
-    ($($variant:ident),* $(,)?) => {
-        #[repr(u8)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum WordBreakProperty { $($variant),* }
-
-        impl WordBreakProperty {
-            pub(crate) const ALL: &[Self] = &[$(Self::$variant),*];
-            pub(crate) const NUM_VARIANTS: usize = Self::ALL.len();
-        }
-    };
-}
+use crate::uax29::break_property_enum;
 
 // Property values for the Word_Break property, as defined in
 // [UAX #29](https://www.unicode.org/reports/tr29/#Word_Break_Property).
 //
 // Each character has an associated Word_Break property value.
-word_break_property_enum! {
-    Other, ALetter, Format, Katakana, MidLetter, MidNum, Numeric,
-    ExtendNumLet, CR, Extend, LF, MidNumLet, Newline,
-    RegionalIndicator, HebrewLetter, SingleQuote, DoubleQuote, ZWJ, WSegSpace,
+break_property_enum! {
+    WordBreakProperty {
+        Other, ALetter, Format, Katakana, MidLetter, MidNum, Numeric,
+        ExtendNumLet, CR, Extend, LF, MidNumLet, Newline,
+        RegionalIndicator, HebrewLetter, SingleQuote, DoubleQuote, ZWJ, WSegSpace,
+    }
 }
 
 /// ASCII characters are very common, so we pre-compute a lookup table for the first 128 code points.
@@ -204,9 +193,7 @@ pub fn lookup_word_break_property_from_dictionary(c: char) -> WordBreakProperty 
 
 #[cfg(test)]
 mod tests {
-    use crate::uax29::word_properties::{
-        ASCII_WORD_BREAK_PROP, WordBreakProperty, lookup_word_break_property_from_dictionary,
-    };
+    use super::{ASCII_WORD_BREAK_PROP, WordBreakProperty, lookup_word_break_property_from_dictionary};
 
     #[test]
     fn test_ascii_table_correct() {

@@ -4,10 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use alyze::{
-    Uax29SentenceBreakOptions, Uax29WordBreakOptions, uax29_tokenize_sentences,
-    uax29_tokenize_words,
-};
+use alyze::uax29;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use parquet::{
     file::reader::{FileReader, SerializedFileReader},
@@ -31,7 +28,7 @@ pub fn wikipedia_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut breakpoints = Vec::new();
             for text in &texts {
-                uax29_tokenize_words(text, &mut breakpoints, Uax29WordBreakOptions::default());
+                uax29::word::tokenize(text, &mut breakpoints, uax29::word::Options::default());
             }
             std::hint::black_box(&breakpoints);
         })
@@ -41,10 +38,10 @@ pub fn wikipedia_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut breakpoints = Vec::new();
             for text in &texts {
-                uax29_tokenize_sentences(
+                uax29::sentence::tokenize(
                     text,
                     &mut breakpoints,
-                    Uax29SentenceBreakOptions::default(),
+                    uax29::sentence::Options::default(),
                 );
             }
             std::hint::black_box(&breakpoints);

@@ -1,27 +1,16 @@
 use icu_properties::{CodePointMapData, CodePointMapDataBorrowed, props::SentenceBreak};
 
-/// Helper to generate the SentenceBreakProperty enum and associated constants.
-/// Ensures `ALL` and `NUM_VARIANTS` are always in sync with the actual variants.
-macro_rules! sentence_break_property_enum {
-    ($($variant:ident),* $(,)?) => {
-        #[repr(u8)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum SentenceBreakProperty { $($variant),* }
-
-        impl SentenceBreakProperty {
-            pub(crate) const ALL: &[Self] = &[$(Self::$variant),*];
-            pub(crate) const NUM_VARIANTS: usize = Self::ALL.len();
-        }
-    };
-}
+use crate::uax29::break_property_enum;
 
 // Property values for the Sentence_Break property, as defined in
 // [UAX #29](https://www.unicode.org/reports/tr29/#Table_Sentence_Break_Property_Values).
 //
 // Each character has an associated Sentence_Break property value.
-sentence_break_property_enum! {
-    Other, ATerm, Close, Format, Lower, Numeric, OLetter, Sep, Sp, STerm,
-    Upper, CR, Extend, LF, SContinue,
+break_property_enum! {
+    SentenceBreakProperty {
+        Other, ATerm, Close, Format, Lower, Numeric, OLetter, Sep, Sp, STerm,
+        Upper, CR, Extend, LF, SContinue,
+    }
 }
 
 /// ASCII characters are very common, so we pre-compute a lookup table for the first 128 code points.
@@ -186,7 +175,7 @@ pub fn lookup_sentence_break_property(c: char) -> SentenceBreakProperty {
 
 #[cfg(test)]
 mod tests {
-    use crate::uax29::sentence_properties::{
+    use super::{
         ASCII_SENTENCE_BREAK_PROP, SentenceBreakProperty, lookup_sentence_break_property,
     };
 

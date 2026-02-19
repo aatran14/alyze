@@ -1,225 +1,62 @@
-use crate::uax29::{
-    sentence_properties::{ASCII_SENTENCE_BREAK_PROP, lookup_sentence_break_property},
-    sentence_transitions::{
-        Action as SentenceAction, State as SentenceState,
-        TRANSITION_TABLE as SENTENCE_TRANSITION_TABLE, Transition as SentenceTransition,
-    },
-    word_properties::{
-        ASCII_WORD_BREAK_PROP, WordBreakProperty, lookup_word_break_property_from_dictionary,
-    },
-    word_transitions::{
-        Action as WordAction, State as WordState, TABLE as WORD_TRANSITION_TABLE,
-        Transition as WordTransition,
-    },
-};
+pub mod sentence;
+pub mod word;
 
-mod sentence_properties;
-mod sentence_transitions;
-mod word_properties;
-mod word_transitions;
+/// Helper to generate a state enum and associated constants.
+/// Ensures `ALL` and `NUM_VARIANTS` are always in sync with the actual variants.
+macro_rules! state_enum {
+    ($($variant:ident),* $(,)?) => {
+        #[repr(u8)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum State { $($variant),* }
 
-/// For backwards compatibility, require caller to pass in options struct.
-#[derive(Default, Clone)]
-pub struct WordOptions {}
-
-/// A tokenizer that implements UAX #29 word boundary rules, using a deterministic finite automaton
-/// (DFA) to efficiently determine word boundaries in Unicode text. Includes a number of fast-paths
-/// for common cases, e.g. ASCII.
-pub fn tokenize_words(text: &str, breakpoints: &mut Vec<usize>, _options: WordOptions) {
-    if text.is_empty() {
-        return;
-    }
-    let bytes = text.as_bytes();
-
-    let mut state = WordState::StartOfText;
-    let mut deferred_break_pos = None;
-    let mut pos = 0;
-
-    // WB4 says: X (Extend | Format | ZWJ)*	→	X
-    // To avoid adding _many_ `_AfterZWJ` variant states, we'll cheat a little by keeping track
-    // of this condition with a bool. More specifically, we need to conditionally break based on
-    // whether the previous character was a ZWJ.
-    //
-    // Example:
-    // 'a 🛑' -> break (ALetter -> Other)
-    // 'a ZWJ 🛑' -> no break (WB4)
-    let mut last_was_zwj = false;
-
-    while pos < text.len() {
-        // Fast path for ASCII, e.g. skip DFA all together when possible.
-        // Roughly a ~2x speedup on English Wikipedia.
-        if matches!(
-            state,
-            WordState::ALetter | WordState::Numeric | WordState::ExtendNumLet | WordState::HLetter
-        ) {
-            let scan_start = pos;
-            while pos < text.len() && bytes[pos] < 0x80 && WORD_CONTINUE[bytes[pos] as usize] {
-                pos += 1;
-            }
-            if pos > scan_start {
-                let last = bytes[pos - 1]; // Safe because we're not in WordState::StartOfText.
-                state = match last {
-                    b'0'..=b'9' => WordState::Numeric,
-                    b'_' => WordState::ExtendNumLet,
-                    _ => WordState::ALetter,
-                };
-                last_was_zwj = false;
-                continue;
-            }
+        impl State {
+            pub const ALL: &[Self] = &[$(Self::$variant),*];
+            pub const NUM_VARIANTS: usize = Self::ALL.len();
         }
-
-        // Fast path for ASCII, e.g. avoid chars().next(), and lookup word property from table.
-        let b = bytes[pos];
-        let (c, prop, char_len) = if b < 0x80 {
-            (b as char, ASCII_WORD_BREAK_PROP[b as usize], 1usize)
-        } else {
-            let c = text[pos..].chars().next().unwrap();
-            (
-                c,
-                lookup_word_break_property_from_dictionary(c),
-                c.len_utf8(),
-            )
-        };
-
-        // Each iteration, we consult the transition table to determine the next state
-        // and whether to emit a breakpoint.
-        let WordTransition(next_state, action) =
-            WORD_TRANSITION_TABLE[state as usize][prop as usize];
-        match action {
-            WordAction::Break => {
-                let boundary = pos;
-                pos += char_len;
-                if last_was_zwj {
-                    last_was_zwj = false;
-                    if WordBreakProperty::is_ext_pictographic(c) {
-                        continue; // transparent
-                    }
-                }
-                last_was_zwj = prop == WordBreakProperty::ZWJ;
-                state = next_state;
-                breakpoints.push(boundary);
-                continue;
-            }
-            WordAction::NoBreak => {
-                last_was_zwj = false;
-                if next_state.is_deferred() {
-                    if deferred_break_pos.is_none() {
-                        deferred_break_pos = Some(pos);
-                    }
-                } else {
-                    deferred_break_pos = None;
-                }
-                state = next_state;
-                pos += char_len;
-            }
-            WordAction::DeferredBreak => {
-                last_was_zwj = false;
-                let boundary = deferred_break_pos.take().unwrap();
-                state = next_state;
-                // Notably, we don't advance `pos` here, current char re-examined
-                // after the next call to `next()`.
-                breakpoints.push(boundary);
-                continue;
-            }
-            WordAction::Transparent => {
-                last_was_zwj = prop == WordBreakProperty::ZWJ;
-                // State doesn't change, but we still consume the character.
-                pos += char_len;
-            }
-        }
-    }
-
-    // Deferred state at EOT - defer failed
-    if state.is_deferred() {
-        breakpoints.push(deferred_break_pos.take().unwrap());
-    }
-
-    // WB2: Any ÷ eot — emit final segment
-    breakpoints.push(text.len());
+    };
 }
+pub(crate) use state_enum;
 
-// Lookup table for ASCII characters, which can be processed without the DFA.
-// Specifically, if we see a given ASCII character, can we just immediately skip to the next one?
-const WORD_CONTINUE: [bool; 128] = {
-    let mut t = [false; 128];
-    let mut i = 0u8;
-    loop {
-        t[i as usize] = match i {
-            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' => true,
-            _ => false,
-        };
-        if i == 127 {
-            break;
+/// Helper to generate a break property enum and associated constants.
+/// Ensures `ALL` and `NUM_VARIANTS` are always in sync with the actual variants.
+macro_rules! break_property_enum {
+    ($name:ident { $($variant:ident),* $(,)? }) => {
+        #[repr(u8)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum $name { $($variant),* }
+
+        impl $name {
+            pub(crate) const ALL: &[Self] = &[$(Self::$variant),*];
+            pub(crate) const NUM_VARIANTS: usize = Self::ALL.len();
         }
-        i += 1;
-    }
-    t
-};
+    };
+}
+pub(crate) use break_property_enum;
 
-#[derive(Default)]
-pub struct SentenceOptions {}
+/// Action is the result of a state transition. Each transition advances to a new state & emits
+/// an action.
+#[derive(Clone, Copy)]
+#[repr(u8)]
+pub enum Action {
+    Break,
+    NoBreak,
 
-pub fn tokenize_sentences(text: &str, breakpoints: &mut Vec<usize>, _options: SentenceOptions) {
-    if text.is_empty() {
-        return;
-    }
-    let bytes = text.as_bytes();
-    let mut state = SentenceState::StartOfText;
-    let mut deferred_break_pos = None;
-    let mut pos = 0;
-    while pos < text.len() {
-        let b = bytes[pos];
-        let (prop, char_len) = if b < 0x80 {
-            (ASCII_SENTENCE_BREAK_PROP[b as usize], 1usize)
-        } else {
-            let c = text[pos..].chars().next().unwrap();
-            (lookup_sentence_break_property(c), c.len_utf8())
-        };
-        let SentenceTransition(next_state, action) =
-            SENTENCE_TRANSITION_TABLE[state as usize][prop as usize];
-        match action {
-            SentenceAction::Break => {
-                state = next_state;
-                breakpoints.push(pos);
-                pos += char_len;
-                continue;
-            }
-            SentenceAction::NoBreak => {
-                if next_state.is_deferred() {
-                    if deferred_break_pos.is_none() {
-                        deferred_break_pos = Some(pos);
-                    }
-                } else {
-                    deferred_break_pos = None;
-                }
-                state = next_state;
-                pos += char_len;
-            }
-            SentenceAction::Transparent => {
-                // State doesn't change, but we still consume the character.
-                pos += char_len;
-            }
-            SentenceAction::DeferredBreak => {
-                let boundary = deferred_break_pos.take().unwrap();
-                state = next_state;
-                // Don't advance pos — re-examine current char in new state.
-                breakpoints.push(boundary);
-                continue;
-            }
-        }
-    }
+    /// Defer break decisions. When this action is taken, we emit a break at the
+    /// previously-stored deferred position and re-examine the current character in
+    /// the new state (pos does not advance).
+    ///
+    /// Example (word): "can't" — when we hit the apostrophe, whether we break depends on the next
+    /// character. If it's a letter, we don't break (WB6). If not, we break before the apostrophe.
+    DeferredBreak,
 
-    // Deferred state at EOT — defer failed, confirm break
-    if state.is_deferred() {
-        breakpoints.push(deferred_break_pos.take().unwrap());
-    }
-
-    // SB2: Any	÷ eot (break at end of text)
-    breakpoints.push(text.len());
+    /// Make a character effectively invisible to the state machine: silently consume it and keep
+    /// the same state. Used for WB4 (Extend/Format/ZWJ transparency) and SB5 (Format/Extend).
+    /// When the action is `Transparent`, the state of the `Transition` is ignored.
+    Transparent,
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_helpers {
     use std::{
         fs::File,
         io::{BufRead, BufReader},
@@ -227,26 +64,24 @@ mod tests {
 
     use itertools::{EitherOrBoth, Itertools};
 
-    use crate::uax29::{SentenceOptions, WordOptions, tokenize_sentences, tokenize_words};
-
     /// A helper enum to represent the expected sequence of codepoints and break points in a test case.
     #[derive(Debug, PartialEq)]
-    enum SequenceItem {
+    pub enum SequenceItem {
         Codepoint(char),
         Break,
     }
 
     /// A test case is composed of a sequence of codepoints and break points, along with an optional
     /// comment for debugging (e.g. containing an explanation of the test case etc).
-    struct TestCase {
-        sequence: Vec<SequenceItem>,
-        comment: Option<String>, // For debugging
+    pub struct TestCase {
+        pub sequence: Vec<SequenceItem>,
+        pub comment: Option<String>,
     }
 
     impl TestCase {
         /// Converts the sequence of codepoints in the test case to a string, ignoring break points.
         /// The tokenizer's job is to re-insert these break points correctly.
-        fn codepoints_as_string(&self) -> String {
+        pub fn codepoints_as_string(&self) -> String {
             self.sequence
                 .iter()
                 .filter_map(|item| match item {
@@ -257,8 +92,9 @@ mod tests {
         }
     }
 
-    /// Loads the test cases from the UAX #29 WordBreakTest.txt file, parsing the codepoints, break points, and comments.
-    fn load_break_tests(filepath: &str) -> Vec<TestCase> {
+    /// Loads the test cases from a UAX #29 break test file, parsing the codepoints, break points,
+    /// and comments.
+    pub fn load_break_tests(filepath: &str) -> Vec<TestCase> {
         let f = File::open(filepath).unwrap();
         let reader = BufReader::new(f);
         let mut tests = Vec::new();
@@ -293,7 +129,7 @@ mod tests {
         tests
     }
 
-    fn test_against_uax29_break_tests(
+    pub fn test_against_uax29_break_tests(
         test_filepath: &str,
         tokenize: impl Fn(&str, &mut Vec<usize>),
     ) -> (usize, usize) {
@@ -333,185 +169,5 @@ mod tests {
             }
         }
         (passed, failures.len())
-    }
-
-    #[test]
-    fn test_word_break_against_uax29_tests() {
-        let (passed, failed) =
-            test_against_uax29_break_tests("testdata/WordBreakTest.txt", |s, breakpoints| {
-                tokenize_words(s, breakpoints, WordOptions::default())
-            });
-        assert_eq!(
-            (1944, 0),
-            (passed, failed),
-            "{} / {} tests passed",
-            passed,
-            passed + failed
-        );
-    }
-
-    #[test]
-    fn word_tokenizer_sanity() {
-        fn assert_breaks(s: &str, expected: Vec<usize>) {
-            let mut breakpoints = Vec::new();
-            tokenize_words(s, &mut breakpoints, WordOptions::default());
-            assert_eq!(breakpoints, expected, "input: {:?}", s);
-        }
-
-        // Empty string yields no breakpoints.
-        assert_breaks("", vec![]);
-
-        // Non-empty strings break at the start & end.
-        assert_breaks("a", vec![0, 1]);
-        assert_breaks(".", vec![0, 1]);
-        assert_breaks("\n", vec![0, 1]);
-
-        // WB5: ALetter × ALetter
-        assert_breaks("hello", vec![0, 5]);
-
-        // WB8: Numeric × Numeric
-        assert_breaks("123", vec![0, 3]);
-
-        // WB9/WB10: ALetter × Numeric, Numeric × ALetter
-        assert_breaks("abc123", vec![0, 6]);
-        assert_breaks("123abc", vec![0, 6]);
-        assert_breaks("a1b2", vec![0, 4]);
-
-        // WB3: CR × LF (stay together)
-        assert_breaks("\r\n", vec![0, 2]);
-        assert_breaks("\r\n\r\n", vec![0, 2, 4]);
-
-        // CR and LF alone break normally
-        assert_breaks("\r", vec![0, 1]);
-        assert_breaks("\n\n", vec![0, 1, 2]);
-
-        // Mixed with newlines
-        assert_breaks("a\r\nb", vec![0, 1, 3, 4]);
-        assert_breaks("ab\r\ncd", vec![0, 2, 4, 6]);
-
-        // Keep horizontal whitespace together (WB3d)
-        assert_breaks("a   c", vec![0, 1, 4, 5]);
-
-        // Do not break letters across certain punctuation, such as within “e.g.” or “example.com”.
-        // TODO make sure this is the right breakpoints for "e.g."
-        assert_breaks("e.g. hello", vec![0, 3, 4, 5, 10]);
-        assert_breaks("example.com", vec![0, 11]);
-        assert_breaks("won't", vec![0, 5]);
-
-        // WB13a/WB13b: ExtendNumLet connects letters, numbers, katakana
-        assert_breaks("a_1", vec![0, 3]);
-        assert_breaks("_a", vec![0, 2]);
-
-        // Edge cases with deferred breaks.
-        assert_breaks("can'", vec![0, 3, 4]);
-        assert_breaks("can' hi", vec![0, 3, 4, 5, 7]);
-
-        // WB3c: ZWJ × Extended_Pictographic (emoji ZWJ sequences)
-        assert_breaks("👨\u{200D}👩", vec![0, 11]);
-        assert_breaks("👨👩", vec![0, 4, 8]);
-
-        // Weird edge case: Letters that are also extended pictographic
-        assert_breaks("🇦", vec![0, 4]);
-        assert_breaks("🇦🇦", vec![0, 8]);
-        assert_breaks("🇦🇦🇦", vec![0, 8, 12]);
-
-        // Circled letters
-        assert_breaks("\u{200d}Ⓜ", vec![0, 6]);
-    }
-
-    #[test]
-    fn sentence_tokenizer_sanity() {
-        fn assert_breaks(s: &str, expected: Vec<usize>) {
-            let mut breakpoints = Vec::new();
-            tokenize_sentences(s, &mut breakpoints, SentenceOptions::default());
-            assert_eq!(breakpoints, expected, "input: {:?}", s);
-        }
-
-        // Empty string yields no breakpoints.
-        assert_breaks("", vec![]);
-
-        // Non-empty strings break at the start & end.
-        assert_breaks("a", vec![0, 1]);
-        assert_breaks(".", vec![0, 1]);
-
-        // SB998: don't break within a sentence.
-        assert_breaks("Hello world", vec![0, 11]);
-
-        // SB3: CR × LF (don't break between CR and LF)
-        assert_breaks("\r\n", vec![0, 2]);
-
-        // SB4: Break after paragraph separators (Sep, CR, LF).
-        assert_breaks("a\nb", vec![0, 2, 3]);
-        assert_breaks("a\r\nb", vec![0, 3, 4]);
-        assert_breaks("a\rb", vec![0, 2, 3]);
-
-        // SB5: Extend and Format are transparent.
-        assert_breaks("a\u{0308}b", vec![0, 4]); // a + combining diaeresis + b
-
-        // SB6: ATerm × Numeric — don't break between "." and a digit.
-        assert_breaks("3.4", vec![0, 3]);
-
-        // SB7: (Upper | Lower) ATerm × Upper — abbreviations like U.S.A.
-        assert_breaks("U.S.A.", vec![0, 6]);
-        assert_breaks("U.S.", vec![0, 4]);
-        assert_breaks("c.D", vec![0, 3]);
-
-        // SB8: ATerm Close* Sp* × (¬(OLetter|Upper|Lower|ParaSep|SATerm))* Lower
-        // Don't break after "." when eventually followed by a lowercase letter.
-        assert_breaks("c.d", vec![0, 3]);
-        assert_breaks("etc. the", vec![0, 8]);
-        assert_breaks("the resp. leaders are", vec![0, 21]);
-
-        // SB8: with Close and Sp between ATerm and Lower.
-        assert_breaks("etc.)'\u{a0}the", vec![0, 11]);
-
-        // SB8a: SATerm Close* Sp* × (SContinue | SATerm)
-        // Don't break before continuation punctuation after sentence terminators.
-        assert_breaks(".,", vec![0, 2]);   // ATerm × SContinue
-        assert_breaks("..", vec![0, 2]);   // ATerm × ATerm
-        assert_breaks("!,", vec![0, 2]);   // STerm × SContinue
-        assert_breaks("!.", vec![0, 2]);   // STerm × ATerm
-
-        // SB9/SB10/SB11: Break after sentence terminators,
-        // but include trailing Close, Sp, and ParaSep in the sentence.
-        assert_breaks("Hello. World", vec![0, 7, 12]);
-        assert_breaks("Hello!) World", vec![0, 8, 13]);
-        assert_breaks("Hello.  World", vec![0, 8, 13]);
-        assert_breaks("Hello.\nWorld", vec![0, 7, 12]);
-
-        // SB11: STerm breaks even when followed by lowercase.
-        assert_breaks("Hello! world", vec![0, 7, 12]);
-
-        // SB8 vs SB11: ATerm followed by OLetter or Upper DOES break (SB8 fails).
-        assert_breaks("Hello. World", vec![0, 7, 12]);
-
-        // Figures 3 & 4 from the spec:
-        // Figure 3: Forbidden breaks on "." (should NOT break)
-        assert_breaks("c.d", vec![0, 3]);
-        assert_breaks("3.4", vec![0, 3]);
-        assert_breaks("U.S.", vec![0, 4]);
-        assert_breaks("the resp. leaders are", vec![0, 21]);
-        assert_breaks("etc.)\u{2019}\u{a0}\u{2018}(the", vec![0, 17]);
-
-        // Figure 4: Allowed breaks on "." (SHOULD break)
-        assert_breaks(
-            "She said \"See spot run.\" John shook his head.",
-            vec![0, 25, 45],
-        );
-    }
-
-    #[test]
-    fn test_sentence_break_against_uax29_tests() {
-        let (passed, failed) =
-            test_against_uax29_break_tests("testdata/SentenceBreakTest.txt", |s, breakpoints| {
-                tokenize_sentences(s, breakpoints, SentenceOptions::default())
-            });
-        assert_eq!(
-            (512, 0),
-            (passed, failed),
-            "{} / {} tests passed",
-            passed,
-            passed + failed
-        );
     }
 }
