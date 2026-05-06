@@ -3,7 +3,8 @@ pub(crate) mod transitions;
 
 use crate::uax29::Action;
 use properties::{
-    ASCII_WORD_BREAK_PROP, WordBreakProperty, lookup_word_break_property_from_dictionary,
+    ASCII_WORD_BREAK_PROP, WordBreakProperty, is_word_like_strict,
+    lookup_word_break_property_from_dictionary,
 };
 use transitions::{State, TABLE, Transition};
 
@@ -12,10 +13,50 @@ use transitions::{State, TABLE, Transition};
 #[non_exhaustive]
 pub struct Options {}
 
+/// For a given span, extracts info from the DFA state to provide useful information upstream, e.g.
+/// whether the span was "word-like", ascii, etc
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
+pub struct TokenProperties(u8);
+
+impl TokenProperties {
+    const WORD_LIKE_MASK: u8 = 0b0000_0001;
+    const NON_ASCII_MASK: u8 = 0b0000_0010;
+
+    pub(crate) const NON_ASCII: Self = Self(Self::NON_ASCII_MASK);
+    pub(crate) const WORD_LIKE: Self = Self(Self::WORD_LIKE_MASK);
+
+    // A token is "word-like" if it contains any char that is:
+    // - ALetter, HebrewLetter, or Numeric (this is a fast-path from our DFA WordBreakProperty lookup)
+    // - Ideographic or Extended_Pictographic (e.g. CJK chars, emoji)
+    // - Other_Number general category (⑦, ², ¼)
+    // - A character whose Script is something meaningful (e.g. belonging to a real writing system),
+    //   as opposed to Script=Common/Inherited/Unknown (e.g. punctuation, symbols, emoji modifiers).
+    pub fn is_word_like(&self) -> bool {
+        self.0 & Self::WORD_LIKE_MASK != 0
+    }
+
+    // Stored disjunctively: a single non-ASCII char in the span sets this bit.
+    // `is_ascii()` returns true when the bit is unset (vacuously true for the empty span).
+    pub fn is_ascii(&self) -> bool {
+        self.0 & Self::NON_ASCII_MASK == 0
+    }
+}
+
+impl std::ops::BitOrAssign for TokenProperties {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
 /// A tokenizer that implements UAX #29 word boundary rules, using a deterministic finite automaton
 /// (DFA) to efficiently determine word boundaries in Unicode text. Includes a number of fast-paths
 /// for common cases, e.g. ASCII.
-pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
+pub fn tokenize(
+    text: &str,
+    _options: Options,
+    mut on_breakpoint: impl FnMut(usize, TokenProperties) -> bool,
+) {
     if text.is_empty() {
         return;
     }
@@ -35,6 +76,10 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
     // 'a ZWJ 🛑' -> no break (WB4)
     let mut last_was_zwj = false;
 
+    // Maintain properties of the current token, which are reset on each break and can be used by the caller
+    // to more efficiently determine what type of token was just emitted, e.g. whether it's "word-like" or ascii.
+    let mut token_props = TokenProperties::default();
+
     while pos < text.len() {
         // Fast path for ASCII, e.g. skip DFA all together when possible.
         // Roughly a ~2x speedup on English Wikipedia.
@@ -43,10 +88,17 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
             State::ALetter | State::Numeric | State::ExtendNumLet | State::HLetter
         ) {
             let scan_start = pos;
-            while pos < text.len() && bytes[pos] < 0x80 && WORD_CONTINUE[bytes[pos] as usize] {
+            let mut fast_acc: u8 = 0;
+            while pos < text.len() && bytes[pos] < 0x80 {
+                let info = ASCII_BYTE_INFO[bytes[pos] as usize];
+                if info & ASCII_WORD_CONTINUE == 0 {
+                    break;
+                }
+                fast_acc |= info;
                 pos += 1;
             }
             if pos > scan_start {
+                token_props.0 |= fast_acc & !ASCII_WORD_CONTINUE;
                 let last = bytes[pos - 1]; // Safe because we're not in State::StartOfText.
                 state = match last {
                     b'0'..=b'9' => State::Numeric,
@@ -59,16 +111,29 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
         }
 
         // Fast path for ASCII, e.g. avoid chars().next(), and lookup word property from table.
+        // `char_props` is this char's contribution to the enclosing token's properties; it's
+        // applied to `token_props` per-arm below, since `Action::Break` treats the breaking char
+        // as the first char of the *next* token (the contribution lands there, not in the token
+        // being emitted).
         let b = bytes[pos];
-        let (c, prop, char_len) = if b < 0x80 {
-            (b as char, ASCII_WORD_BREAK_PROP[b as usize], 1usize)
+        let (c, prop, char_len, char_props) = if b < 0x80 {
+            (
+                b as char,
+                ASCII_WORD_BREAK_PROP[b as usize],
+                1usize,
+                TokenProperties(ASCII_BYTE_INFO[b as usize] & !ASCII_WORD_CONTINUE),
+            )
         } else {
             let c = text[pos..].chars().next().unwrap();
-            (
-                c,
-                lookup_word_break_property_from_dictionary(c),
-                c.len_utf8(),
-            )
+            let prop = lookup_word_break_property_from_dictionary(c);
+            // Cheap path covers ALetter / HebrewLetter / Numeric. For everything else, fall back
+            // to the strict per-char check (ExtPict / Ideographic / Script / OtherNumber).
+            let mut char_props = TokenProperties::NON_ASCII;
+            char_props |= WORD_BREAK_CONTRIB[prop as usize];
+            if !char_props.is_word_like() && is_word_like_strict(c) {
+                char_props |= TokenProperties::WORD_LIKE;
+            }
+            (c, prop, c.len_utf8(), char_props)
         };
 
         // Each iteration, we consult the transition table to determine the next state
@@ -81,12 +146,18 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
                 if last_was_zwj {
                     last_was_zwj = false;
                     if WordBreakProperty::is_ext_pictographic(c) {
-                        continue; // transparent
+                        // Transparent: char joins the in-progress token instead of breaking.
+                        token_props |= char_props;
+                        continue;
                     }
                 }
                 last_was_zwj = prop == WordBreakProperty::ZWJ;
                 state = next_state;
-                breakpoints.push(boundary);
+                if !on_breakpoint(boundary, std::mem::take(&mut token_props)) {
+                    return;
+                }
+                // Breaking char starts the next token; apply its contribution after the take.
+                token_props |= char_props;
                 continue;
             }
             Action::NoBreak => {
@@ -100,42 +171,67 @@ pub fn tokenize(text: &str, breakpoints: &mut Vec<usize>, _options: Options) {
                 }
                 state = next_state;
                 pos += char_len;
+                token_props |= char_props;
             }
             Action::DeferredBreak => {
                 last_was_zwj = false;
                 let boundary = deferred_break_pos.take().unwrap();
                 state = next_state;
-                // Notably, we don't advance `pos` here, current char re-examined
-                // after the next call to `next()`.
-                breakpoints.push(boundary);
+                // Notably, we don't advance `pos` here; the current char is re-examined on the
+                // next iteration and will accumulate its props then — don't apply char_props here.
+                if !on_breakpoint(boundary, std::mem::take(&mut token_props)) {
+                    return;
+                }
                 continue;
             }
             Action::Transparent => {
                 last_was_zwj = prop == WordBreakProperty::ZWJ;
                 // State doesn't change, but we still consume the character.
                 pos += char_len;
+                token_props |= char_props;
             }
         }
     }
 
     // Deferred state at EOT - defer failed
     if state.is_deferred() {
-        breakpoints.push(deferred_break_pos.take().unwrap());
+        let breakpoint = deferred_break_pos.take().unwrap();
+        if !on_breakpoint(breakpoint, std::mem::take(&mut token_props)) {
+            return;
+        }
     }
 
     // WB2: Any ÷ eot — emit final segment
-    breakpoints.push(text.len());
+    _ = on_breakpoint(text.len(), token_props);
 }
 
-// Lookup table for ASCII characters, which can be processed without the DFA.
-// Specifically, if we see a given ASCII character, can we just immediately skip to the next one?
-const WORD_CONTINUE: [bool; 128] = {
-    let mut t = [false; 128];
+/// Cheap-path `TokenProperties` contribution for each `WordBreakProperty` value. Covers the
+/// signals that fall out of WordBreak alone — letters and digits. Katakana is intentionally
+/// **not** included: its set mixes Katakana letters (word-like) with the prolonged-sound mark
+/// `ー` (Script=Common, not word-like). Those split is resolved via `is_word_like_strict`.
+const WORD_BREAK_CONTRIB: [TokenProperties; WordBreakProperty::NUM_VARIANTS] = {
+    let mut t = [TokenProperties(0); WordBreakProperty::NUM_VARIANTS];
+    t[WordBreakProperty::ALetter as usize] = TokenProperties::WORD_LIKE;
+    t[WordBreakProperty::HebrewLetter as usize] = TokenProperties::WORD_LIKE;
+    t[WordBreakProperty::Numeric as usize] = TokenProperties::WORD_LIKE;
+    t
+};
+
+/// Per-ASCII-byte info for the fast-path scan and the single-char branch.
+/// - Bit 7 (`ASCII_WORD_CONTINUE`): byte is part of a word-like run (`[a-zA-Z0-9_]`).
+/// - Low bits: the byte's `TokenProperties` contribution (currently just `WORD_LIKE_MASK` for
+///   `[a-zA-Z0-9]`, since underscore continues the run but isn't itself word-like).
+const ASCII_WORD_CONTINUE: u8 = 0b1000_0000;
+const ASCII_BYTE_INFO: [u8; 128] = {
+    let mut t = [0u8; 128];
     let mut i = 0u8;
     loop {
         t[i as usize] = match i {
-            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' => true,
-            _ => false,
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => {
+                ASCII_WORD_CONTINUE | TokenProperties::WORD_LIKE_MASK
+            }
+            b'_' => ASCII_WORD_CONTINUE,
+            _ => 0,
         };
         if i == 127 {
             break;
@@ -154,7 +250,10 @@ mod tests {
     fn test_word_break_against_uax29_tests() {
         let (passed, failed) =
             test_against_uax29_break_tests("testdata/WordBreakTest.txt", |s, breakpoints| {
-                tokenize(s, breakpoints, Options::default())
+                tokenize(s, Options::default(), |bp, _props| {
+                    breakpoints.push(bp);
+                    true
+                });
             });
         assert_eq!(
             (1944, 0),
@@ -169,7 +268,10 @@ mod tests {
     fn tokenizer_sanity() {
         fn assert_breaks(s: &str, expected: Vec<usize>) {
             let mut breakpoints = Vec::new();
-            tokenize(s, &mut breakpoints, Options::default());
+            tokenize(s, Options::default(), |bp, _props| {
+                breakpoints.push(bp);
+                true
+            });
             assert_eq!(breakpoints, expected, "input: {:?}", s);
         }
 
@@ -242,5 +344,83 @@ mod tests {
 
         // Circled letters
         assert_breaks("\u{200d}Ⓜ", vec![0, 6]);
+    }
+
+    #[test]
+    fn tokenizer_properties_sanity() {
+        // Each emit reports properties of the span just closed; the leading boundary at 0 has
+        // no preceding span, so it carries default props.
+        fn assert_props(s: &str, expected: Vec<(usize, bool)>) {
+            let mut got: Vec<(usize, bool)> = Vec::new();
+            tokenize(s, Options::default(), |bp, props| {
+                got.push((bp, props.is_ascii()));
+                true
+            });
+            assert_eq!(got, expected, "input: {:?}", s);
+        }
+
+        // Leading boundary at 0 is vacuously is_ascii=true.
+        assert_props("hello", vec![(0, true), (5, true)]);
+        assert_props("🛑", vec![(0, true), (4, false)]);
+
+        // The sharp case: the breaking char is non-ASCII but starts the *next* token, so "ab"
+        // must still report is_ascii=true and "🛑" must report is_ascii=false.
+        assert_props("ab🛑", vec![(0, true), (2, true), (6, false)]);
+    }
+
+    fn assert_word_like(s: &str, expected: Vec<(usize, bool)>) {
+        let mut got: Vec<(usize, bool)> = Vec::new();
+        tokenize(s, Options::default(), |bp, props| {
+            got.push((bp, props.is_word_like()));
+            true
+        });
+        assert_eq!(got, expected, "input: {:?}", s);
+    }
+
+    /// ASCII subset of the word-like contract: any token containing an ASCII letter or digit is
+    /// word-like; pure-connector / whitespace / punctuation tokens are not. The leading boundary
+    /// at 0 has no preceding span, so word_like is vacuously false.
+    #[test]
+    fn tokenizer_word_like_ascii_sanity() {
+        // ASCII letters / digits / mixed / contractions.
+        assert_word_like("hello", vec![(0, false), (5, true)]);
+        assert_word_like("123", vec![(0, false), (3, true)]);
+        assert_word_like("abc123", vec![(0, false), (6, true)]);
+        assert_word_like("won't", vec![(0, false), (5, true)]);
+
+        // Connectors only (ExtendNumLet) — `_` is not a letter or digit.
+        assert_word_like("___", vec![(0, false), (3, false)]);
+        // Whitespace only.
+        assert_word_like("   ", vec![(0, false), (3, false)]);
+        // ASCII punctuation: each '!' breaks separately, none word-like.
+        assert_word_like("!!!", vec![(0, false), (1, false), (2, false), (3, false)]);
+    }
+
+    /// Strict cases that need Script / Ideographic / OtherNumber / ExtPict lookups beyond the
+    /// WordBreak property.
+    #[test]
+    fn tokenizer_word_like_strict_sanity() {
+        // Hebrew (HebrewLetter prop)
+        assert_word_like("ש", vec![(0, false), (2, true)]);
+
+        // CJK ideograph: WordBreak=Other, Script=Han.
+        assert_word_like("中", vec![(0, false), (3, true)]);
+        // Ideographic iteration mark: WordBreak=Other, Script=Common, Ideographic=true.
+        assert_word_like("々", vec![(0, false), (3, true)]);
+        // Circled digit: WordBreak=Other, GeneralCategory=OtherNumber.
+        assert_word_like("①", vec![(0, false), (3, true)]);
+        // Devanagari letter: WordBreak=Other, Script=Devanagari.
+        assert_word_like("अ", vec![(0, false), (3, true)]);
+        // Thai letter: WordBreak=Other, Script=Thai.
+        assert_word_like("ก", vec![(0, false), (3, true)]);
+        // Emoji: WordBreak=Other (or ExtPict), Script=Common, ExtendedPictographic=true.
+        assert_word_like("👍", vec![(0, false), (4, true)]);
+
+        // Real Katakana letter: WordBreak=Katakana, Script=Katakana → word-like.
+        assert_word_like("リ", vec![(0, false), (3, true)]);
+        // Katakana-Hiragana extender: WordBreak=Katakana, Script=Common → NOT word-like.
+        // Locks in why we can't just OR `WordBreakProperty::Katakana → WORD_LIKE`; we need to
+        // additionally check the char's Script.
+        assert_word_like("ー", vec![(0, false), (3, false)]);
     }
 }
