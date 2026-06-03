@@ -3,22 +3,22 @@ wikipedia/word break + word_like,c4a-standard-8-lssd,331.92,2026-06-01T22:28:00Z
 wikipedia/sentence break,c4a-standard-8-lssd,325.89,2026-06-01T22:28:00Z,f64ad8d
 analysis/tokenize only (case sensitive),c4a-standard-8-lssd,235.23,2026-06-01T22:28:00Z,f64ad8d
 analysis/+ lowercase,c4a-standard-8-lssd,192.75,2026-06-01T22:28:00Z,f64ad8d
-analysis/+ stopword removal (English),c4a-standard-8-lssd,124.16,2026-06-01T22:28:00Z,f64ad8d
-analysis/+ stemming (English),c4a-standard-8-lssd,80.57,2026-06-01T22:28:00Z,f64ad8d
-analysis/full (max length + stopwords + stemming + ASCII fold),c4a-standard-8-lssd,64.8,2026-06-01T22:28:00Z,f64ad8d
+analysis/+ stopwords,c4a-standard-8-lssd,124.16,2026-06-01T22:28:00Z,f64ad8d
+analysis/+ stemming,c4a-standard-8-lssd,80.57,2026-06-01T22:28:00Z,f64ad8d
+analysis/full pipeline,c4a-standard-8-lssd,64.8,2026-06-01T22:28:00Z,f64ad8d
 wikipedia/word break,c4-standard-8-lssd,306.41,2026-06-01T22:28:00Z,f64ad8d
 wikipedia/word break + word_like,c4-standard-8-lssd,299.0,2026-06-01T22:28:00Z,f64ad8d
 wikipedia/sentence break,c4-standard-8-lssd,377.81,2026-06-01T22:28:00Z,f64ad8d
 analysis/tokenize only (case sensitive),c4-standard-8-lssd,246.81,2026-06-01T22:28:00Z,f64ad8d
 analysis/+ lowercase,c4-standard-8-lssd,203.88,2026-06-01T22:28:00Z,f64ad8d
-analysis/+ stopword removal (English),c4-standard-8-lssd,139.95,2026-06-01T22:28:00Z,f64ad8d
-analysis/+ stemming (English),c4-standard-8-lssd,84.36,2026-06-01T22:28:00Z,f64ad8d
-analysis/full (max length + stopwords + stemming + ASCII fold),c4-standard-8-lssd,69.93,2026-06-01T22:28:00Z,f64ad8d
+analysis/+ stopwords,c4-standard-8-lssd,139.95,2026-06-01T22:28:00Z,f64ad8d
+analysis/+ stemming,c4-standard-8-lssd,84.36,2026-06-01T22:28:00Z,f64ad8d
+analysis/full pipeline,c4-standard-8-lssd,69.93,2026-06-01T22:28:00Z,f64ad8d
 wikipedia/word break,c4d-standard-8-lssd,338.81,2026-06-01T22:28:00Z,f64ad8d
 wikipedia/word break + word_like,c4d-standard-8-lssd,332.39,2026-06-01T22:28:00Z,f64ad8d
 wikipedia/sentence break,c4d-standard-8-lssd,398.17,2026-06-01T22:28:00Z,f64ad8d
 analysis/tokenize only (case sensitive),c4d-standard-8-lssd,274.84,2026-06-01T22:28:00Z,f64ad8d
 analysis/+ lowercase,c4d-standard-8-lssd,225.56,2026-06-01T22:28:00Z,f64ad8d
-analysis/+ stopword removal (English),c4d-standard-8-lssd,148.96,2026-06-01T22:28:00Z,f64ad8d
-analysis/+ stemming (English),c4d-standard-8-lssd,95.72,2026-06-01T22:28:00Z,f64ad8d
-analysis/full (max length + stopwords + stemming + ASCII fold),c4d-standard-8-lssd,78.92,2026-06-01T22:28:00Z,f64ad8d
+analysis/+ stopwords,c4d-standard-8-lssd,148.96,2026-06-01T22:28:00Z,f64ad8d
+analysis/+ stemming,c4d-standard-8-lssd,95.72,2026-06-01T22:28:00Z,f64ad8d
+analysis/full pipeline,c4d-standard-8-lssd,78.92,2026-06-01T22:28:00Z,f64ad8d
