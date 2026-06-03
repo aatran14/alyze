@@ -1,4 +1,3 @@
-benchmark,machine,throughput_mibs,timestamp,commit
 wikipedia/word break,c4a-standard-8-lssd,358.98,2026-06-03T20:29:49Z,b2c1873
 wikipedia/word break + word_like,c4a-standard-8-lssd,330.67,2026-06-03T20:29:49Z,b2c1873
 wikipedia/sentence break,c4a-standard-8-lssd,325.53,2026-06-03T20:29:49Z,b2c1873
