@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>alyze benchmarks</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <header class="page-header">
+    <div class="title-row">
+      <div class="title-block">
+        <h1>alyze benchmarks</h1>
+        <!-- <p class="sub">64 MiB English Wikipedia &middot; median of 16 samples</p> -->
+        <p class="sub">64 MiB English Wikipedia</p>
+      </div>
+      <div class="controls" id="controls"></div>
+    </div>
+  </header>
+  <div id="app"></div>
+
+  <script>
+    fetch('data/data.csv').then(r => r.text()).then(main)
+
+    function main(CSV) {
+      const SHORT = {
+        'tokenize only (case sensitive)': 'tokenize',
+        '+ lowercase': '+ lower',
+        '+ stopword removal (English)': '+ stopwords',
+        '+ stemming (English)': '+ stemming',
+        'full (max length + stopwords + stemming + ASCII fold)': 'full pipeline',
+        'word break + word_like': 'word + word_like',
+        'word break': 'word break',
+        'sentence break': 'sentence break'
+      }
+      const COLORS = ['#1e293b', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#4ade80', '#f0abfc', '#334155']
+      const GROUPS = {
+        wikipedia: ['word break', 'word break + word_like', 'sentence break'],
+        analysis: ['tokenize only (case sensitive)', '+ lowercase', '+ stopword removal (English)', '+ stemming (English)', 'full (max length + stopwords + stemming + ASCII fold)']
+      }
+
+      const rows = CSV.trim().split('\n').slice(1).map(l => {
+        const p = l.split(',')
+        return { bench: p[0], machine: p[1], throughput: parseFloat(p[2]), ts: p[3] || '', commit: p[4] || '' }
+      }).filter(r => !isNaN(r.throughput))
+
+      const machines = [...new Set(rows.map(r => r.machine))]
+      const timestamps = [...new Set(rows.map(r => r.ts))].sort()
+      window.compareFrom = 0
+      window.compareTo = timestamps.length - 1
+      window.cur = machines[0]
+
+      function formatDate(ts) {
+        return ts ? ts.split('T')[0].slice(5) : '—'
+      }
+
+      function dateDrop(varName, curIdx) {
+        const label = formatDate(timestamps[curIdx])
+        const items = timestamps.map((ts, i) =>
+          `<div class="dd-item ${i === curIdx ? 'dd-on' : ''}" onclick="event.stopPropagation();${varName}=${i};render()">${formatDate(ts)}</div>`
+        ).join('')
+        return `<div class="dd"><span>${label}</span><div class="dd-list">${items}</div></div>`
+      }
+
+      window.pickMachine = function(m) {
+        cur = m
+        render()
+      }
+
+      function render() {
+        document.getElementById('controls').innerHTML =
+          machines.map(m =>
+            `<label class="machine-check"><input type="checkbox" ${m === cur ? 'checked' : ''} onchange="pickMachine('${m}')"><span>${m}</span></label>`
+          ).join('')
+
+        const latest = timestamps[compareTo] || timestamps[timestamps.length - 1]
+        const baseline = timestamps[compareFrom] || timestamps[0]
+
+        let tables = []
+        let charts = []
+
+        for (const [group, names] of Object.entries(GROUPS)) {
+          const tableTitle = group === 'wikipedia' ? 'Tokenization (MiB/s)' : 'Analysis Pipeline (MiB/s)'
+          const chartTitle = group === 'wikipedia'
+            ? 'Tokenization: throughput (MiB/s) versus time (days)'
+            : 'Analysis Pipeline: throughput (MiB/s) versus time (days)'
+
+          // table
+          let tableRows = ''
+          if (group === 'wikipedia' && timestamps.length > 1) {
+            tableRows += `<tr><td></td><td class="base-col">${dateDrop('compareFrom', compareFrom)}</td><td class="val-col">${dateDrop('compareTo', compareTo)}</td></tr>`
+          }
+          tableRows += `<tr><td colspan="3" class="section-head"><b>${tableTitle}</b></td></tr>`
+          for (const name of names) {
+            const bench = group + '/' + name
+            const r = rows.find(r => r.bench === bench && r.machine === cur && r.ts === latest)
+            const base = baseline !== latest ? rows.find(r => r.bench === bench && r.machine === cur && r.ts === baseline) : null
+            if (!r) continue
+            const baseText = base ? base.throughput.toFixed(1) : ''
+            let valColor = ''
+            if (base) {
+              const d = (r.throughput - base.throughput) / base.throughput * 100
+              if (Math.abs(d) > 1) valColor = d > 0 ? 'up' : 'dn'
+            }
+            tableRows += `<tr><td class="lbl-col">${SHORT[name] || name}</td><td class="base-col">${baseText}</td><td class="val-col ${valColor}">${r.throughput.toFixed(1)}</td></tr>`
+          }
+          let tableNote = ''
+          if (group === 'wikipedia') {
+            tableNote = `<p class="table-note"><sup>&dagger;</sup>Throughput over 64 MiB of English Wikipedia article text (cargo bench), running on ${cur}. Numbers are the median of 16 samples.</p>`
+          } else if (group === 'analysis') {
+            tableNote = `<p class="table-note"><sup>&dagger;</sup>Analysis (benches/wikipedia.rs, analysis group) — each row adds one stage to the pipeline, so the deltas approximate each filter's marginal cost.</p>`
+          }
+          tables.push(`<table class="card-table" cellspacing="0" cellpadding="0">${tableRows}</table>${tableNote}`)
+
+          // chart
+          if (timestamps.length >= 2) {
+            // ze knobs :)
+            const CHART_H = 280                        // total chart height
+            const CHART_PADDING = { t: 68, r: 150, b: 80, l: 52 }  // the "margin" around the plot
+            const DATE_SPACING = 35                    // horizontal px between dates
+            const MAX_DATE_SLOTS = 14                  // how many dates fit before scrolling
+            const Y_RANGE = group === 'wikipedia' ? [300, 500] : [0, 300]  // [min, max] for y-axis
+            const Y_STEP = 50                          // y step interval
+            const Y_LABEL_GAP = 10                     // gap between y-axis labels and grid lines
+
+            const TITLE_X = 10                         // chart title x position
+            const TITLE_Y = 22                         // chart title y position
+            const TITLE_SIZE = 12                      // chart title font size
+
+            const LEGEND_GAP = 16                      // gap between grid and legend
+            const LEGEND_TOP = 48                     // legend start offset from box top
+            const LEGEND_SPACING = 20                  // vertical space between legend items
+            const LEGEND_DOT_R = 4                     // legend dot radius
+            const LEGEND_FONT = 11                     // legend font size
+
+            const LINE_WIDTH = 2                       // data line stroke width
+            const DOT_R = 4                            // data point dot radius
+            
+            // end of knobs
+
+            const P = CHART_PADDING
+            const W = P.l + (MAX_DATE_SLOTS - 1) * DATE_SPACING + P.r
+            const H = CHART_H
+            const pH = H - P.t - P.b
+            const series = names.map((name, i) => {
+              const bench = group + '/' + name
+              const pts = timestamps.map((ts, ti) => {
+                const r = rows.find(r => r.bench === bench && r.machine === cur && r.ts === ts)
+                return r ? { x: ti, y: r.throughput } : null
+              }).filter(Boolean)
+              return { name, color: COLORS[i], pts }
+            }).filter(s => s.pts.length > 0)
+            const [minY, maxY] = Y_RANGE
+            const sx = i => P.l + i * DATE_SPACING
+            const sy = v => P.t + pH - ((v - minY) / (maxY - minY)) * pH
+            const gridEnd = P.l + (MAX_DATE_SLOTS - 1) * DATE_SPACING
+            const midY = P.t + pH / 2
+
+            // title
+            let svg = `<text x="${TITLE_X}" y="${TITLE_Y}" fill="#334155" font-size="${TITLE_SIZE}" font-weight="bold">${chartTitle}</text>`
+            // y-axis label
+            svg += `<text x="10" y="${midY}" text-anchor="middle" fill="#94a3b8" font-size="9" transform="rotate(-90,10,${midY})">throughput (MiB/s)</text>`
+            // grid lines + y labels
+            for (let v = minY; v <= maxY; v += Y_STEP) {
+              svg += `<line x1="${P.l}" x2="${gridEnd}" y1="${sy(v)}" y2="${sy(v)}" stroke="#e2e8f0"/>`
+              svg += `<text x="${P.l - Y_LABEL_GAP}" y="${sy(v) + 4}" text-anchor="end" fill="#94a3b8" font-size="11">${v}</text>`
+            }
+            // x-axis label
+            svg += `<text x="${W / 2}" y="${H - 4}" text-anchor="middle" fill="#94a3b8" font-size="9">date</text>`
+            // date labels
+            timestamps.forEach((ts, i) => {
+              const commit = rows.find(r => r.ts === ts)?.commit || ''
+              const lx = sx(i), ly = H - P.b + 14
+              svg += `<text x="${lx}" y="${ly}" text-anchor="end" fill="#94a3b8" font-size="11" transform="rotate(-45,${lx},${ly})" data-commit="${commit}" data-ti="${i}" class="date-tick">${ts.split('T')[0]}</text>`
+            })
+            // hover columns (invisible rects)
+            timestamps.forEach((ts, i) => {
+              svg += `<rect x="${sx(i) - DATE_SPACING/2}" y="${P.t}" width="${DATE_SPACING}" height="${pH}" fill="transparent" data-ti="${i}" class="date-tick"/>`
+            })
+            // data lines + dots
+            for (const s of series) {
+              const d = s.pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ')
+              svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${LINE_WIDTH}"/>`
+              for (const p of s.pts) {
+                svg += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${DOT_R}" fill="${s.color}" data-ti="${p.x}" class="date-tick"/>`
+              }
+            }
+            // tooltip boxes (rendered last so they're on top)
+            timestamps.forEach((ts, i) => {
+              const commit = rows.find(r => r.ts === ts)?.commit || ''
+              const dotsAtI = series.map(s => s.pts.find(p => p.x === i)).filter(Boolean)
+              const topDotY = Math.min(...dotsAtI.map(p => sy(p.y)))
+              const boxX = sx(i) + DOT_R + 6
+              const boxY = topDotY - 6
+              const boxW = 140
+              const boxH = series.length * 14 + 24
+              svg += `<g class="val-label date-tick" data-ti="${i}" style="display:none">`
+              svg += `<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" fill="white" stroke="#e2e8f0"/>`
+              svg += `<text font-size="9" y="${boxY + 14}"><tspan x="${boxX + 6}" fill="#94a3b8">${commit}</tspan></text>`
+              series.forEach((s, si) => {
+                const pt = s.pts.find(p => p.x === i)
+                if (!pt) return
+                svg += `<text font-size="9" y="${boxY + 28 + si * 14}"><tspan x="${boxX + 6}" fill="#334155">${SHORT[s.name]||s.name}</tspan><tspan x="${boxX + boxW - 6}" text-anchor="end" fill="${s.color}">${pt.y.toFixed(1)}</tspan></text>`
+              })
+              svg += `</g>`
+            })
+            // legend
+            const legX = gridEnd + LEGEND_GAP
+            const legY0 = LEGEND_TOP
+            const legH = series.length * LEGEND_SPACING
+            const LEGEND_PAD = 8
+            svg += `<rect x="${legX - LEGEND_PAD}" y="${legY0 - LEGEND_SPACING + LEGEND_PAD/2}" width="${P.r - LEGEND_GAP}" height="${legH + LEGEND_PAD}" rx="0" fill="white" stroke="#e2e8f0"/>`
+            series.forEach((s, i) => {
+              const lx = legX, ly = legY0 + i * LEGEND_SPACING
+              svg += `<circle cx="${lx}" cy="${ly - 4}" r="${LEGEND_DOT_R}" fill="${s.color}"/>`
+              svg += `<text x="${lx + 10}" y="${ly}" fill="#64748b" font-size="${LEGEND_FONT}">${SHORT[s.name] || s.name}</text>`
+            })
+            charts.push(`<div class="copyable chart-card"><button class="copy-btn" onclick="copyEl(this.parentElement)">copy</button><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${svg}</svg></div>`)
+          }
+        }
+
+        let html = `<div class="benchmark-wrap"><p class="repo-links"><a href="https://github.com/turbopuffer/alyze">turbopuffer/alyze</a> | <a href="https://github.com/aatran14/alyze">aatran14/alyze</a></p><div class="copyable outer-card"><div class="copy-anchor"><button class="copy-btn" onclick="copyEl(this.closest('.copyable'))">copy</button></div><div class="outer-card-machine">${cur}</div>`
+        for (let i = 0; i < tables.length; i++) {
+          html += `<div class="grid"><div class="card">${tables[i]}</div>${charts[i] || ''}</div>`
+        }
+        html += `</div></div>`
+
+        document.getElementById('app').innerHTML = html
+      }
+
+      window.render = render
+      render()
+
+      document.addEventListener('mouseover', e => {
+        const t = e.target.closest('[data-commit]')
+        if (!t) return
+        const card = t.closest('.chart-card')
+        let tip = card.querySelector('.tip')
+        if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; card.appendChild(tip) }
+        tip.textContent = t.dataset.commit
+        const r = t.getBoundingClientRect(), cr = card.getBoundingClientRect()
+        tip.style.display = 'block'
+        tip.style.left = (r.left - cr.left) + 'px'
+        tip.style.top = (r.bottom - cr.top + 2) + 'px'
+      })
+      document.addEventListener('mouseout', e => {
+        if (!e.target.closest('[data-commit]')) return
+        const tip = e.target.closest('.chart-card')?.querySelector('.tip')
+        if (tip) tip.style.display = 'none'
+      })
+
+      document.addEventListener('mouseover', e => {
+        const tick = e.target.closest('.date-tick')
+        if (!tick) return
+        const svg = tick.closest('svg')
+        const ti = tick.dataset.ti
+        svg.querySelectorAll('.val-label').forEach(l => l.style.display = l.dataset.ti === ti ? 'block' : 'none')
+      })
+      document.addEventListener('mouseout', e => {
+        const tick = e.target.closest('.date-tick')
+        if (!tick) return
+        const svg = tick.closest('svg')
+        svg.querySelectorAll('.val-label').forEach(l => l.style.display = 'none')
+      })
+
+    }
+
+    function copyEl(el) {
+      const btn = el.querySelector('.copy-btn')
+      const btns = el.querySelectorAll('.copy-btn')
+      btns.forEach(b => b.style.opacity = '0')
+      html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+        canvas.toBlob(blob => {
+          navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          btns.forEach(b => b.style.opacity = '')
+          btn.textContent = 'copied!'
+          setTimeout(() => btn.textContent = 'copy', 1500)
+        })
+      }).catch(() => btns.forEach(b => b.style.opacity = ''))
+    }
+  </script>
+</body>
+</html>
