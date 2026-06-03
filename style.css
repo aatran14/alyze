@@ -1,0 +1,334 @@
+:root {
+  --slate: #334155;
+  --muted: #94a3b8;
+  --border: #cbd5e1;
+  --bg: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+  color: var(--slate);
+}
+
+.page-header {
+  margin-bottom: 0px;
+}
+
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.title-block h1 {
+  font-size: 20px;
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
+.title-block .sub {
+  white-space: nowrap;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.benchmark-wrap {
+  position: relative;
+  padding-top: 18px;
+}
+
+.benchmark-wrap > .repo-links {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.repo-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.repo-links a:hover {
+  color: var(--slate);
+  text-decoration: underline;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 22px;
+}
+
+.machine-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  user-select: none;
+}
+
+.machine-check input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.machine-check input:checked {
+  background: var(--slate);
+  border-color: var(--slate);
+}
+
+.machine-check:has(input:checked) {
+  color: var(--slate);
+  font-weight: 600;
+}
+
+.grid {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+
+.card {
+  padding: 12px 16px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.card-table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.card-table td {
+  padding: 4px 0;
+}
+
+.card-table tr + tr td {
+  border-top: 1px solid #f1f5f9;
+}
+
+.lbl-col {
+  color: #64748b;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.base-col {
+  text-align: right;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.4);
+  padding-right: 8px!important;
+  border-right: 1px solid #e2e8f0;
+}
+
+.val-col {
+  text-align: left;
+  font-weight: 600;
+  padding-left: 8px!important;
+}
+
+.section-head {
+  padding-top: 8px !important;
+  padding-bottom: 4px !important;
+  font-size: 14px;
+  border-top: none !important;
+}
+
+.table-note {
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  background: var(--bg);
+  display: none;
+}
+
+.card:hover .table-note {
+  display: block;
+}
+
+.outer-card:has(.copy-anchor:hover) .table-note {
+  display: block;
+}
+
+.up { color: #16a34a; }
+.dn { color: #ca8a04; }
+
+.chart-card {
+  border: 1px solid var(--border);
+  padding: 8px;
+  background: white;
+  position: relative;
+}
+
+.chart-card svg {
+  display: block;
+}
+
+.dd {
+  position: relative;
+  display: block;
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--slate);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.dd > span,
+.dd-item {
+  display: block;
+  padding: 2px 6px;
+  line-height: 1.3;
+}
+
+.base-col .dd {
+  text-align: right;
+}
+
+.base-col .dd-list {
+  left: auto;
+  right: 0;
+  min-width: 100%;
+}
+
+.val-col .dd {
+  text-align: left;
+}
+
+.val-col .dd-list {
+  left: 0;
+  right: auto;
+  min-width: 100%;
+}
+
+.dd-list {
+  display: none;
+  position: absolute;
+  top: 100%;
+  background: white;
+  border: 1px solid var(--border);
+  z-index: 20;
+  box-sizing: border-box;
+}
+
+.dd:hover .dd-list {
+  display: block;
+}
+
+.dd-item {
+  color: var(--muted);
+}
+
+.dd-item:hover {
+  background: var(--bg);
+  color: var(--slate);
+}
+
+.dd-item.dd-on {
+  color: var(--slate);
+  font-weight: 600;
+}
+
+.copyable {
+  position: relative;
+}
+
+.outer-card {
+  border: 1px dashed #e2e8f0;
+  padding: 16px;
+}
+
+.outer-card-machine {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--slate);
+  margin: 0 0 12px 16px;
+}
+
+.outer-card:hover {
+  border-color: #94a3b8;
+}
+
+.copy-btn {
+  display: none;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-family: inherit;
+  font-size: 9px;
+  color: var(--muted);
+  background: white;
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  cursor: pointer;
+  z-index: 15;
+}
+
+.copyable:hover > .copy-btn {
+  display: block;
+}
+
+.outer-card > .copy-anchor {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 15;
+}
+
+.outer-card > .copy-anchor > .copy-btn {
+  display: block;
+  position: static;
+}
+
+.chart-card:hover > .copy-btn {
+  display: block;
+}
+
+.tip {
+  position: absolute;
+  background: var(--slate);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+}
