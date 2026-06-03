@@ -26,8 +26,11 @@
       const SHORT = {
         'tokenize only (case sensitive)': 'tokenize',
         '+ lowercase': '+ lower',
+        '+ stopwords': '+ stopwords',
+        '+ stemming': '+ stemming',
         '+ stopword removal (English)': '+ stopwords',
         '+ stemming (English)': '+ stemming',
+        'full pipeline': 'full pipeline',
         'full (max length + stopwords + stemming + ASCII fold)': 'full pipeline',
         'word break + word_like': 'word + word_like',
         'word break': 'word break',
@@ -36,7 +39,7 @@
       const COLORS = ['#1e293b', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#4ade80', '#f0abfc', '#334155']
       const GROUPS = {
         wikipedia: ['word break', 'word break + word_like', 'sentence break'],
-        analysis: ['tokenize only (case sensitive)', '+ lowercase', '+ stopword removal (English)', '+ stemming (English)', 'full (max length + stopwords + stemming + ASCII fold)']
+        analysis: ['tokenize only (case sensitive)', '+ lowercase', '+ stopwords', '+ stopword removal (English)', '+ stemming', '+ stemming (English)', 'full pipeline', 'full (max length + stopwords + stemming + ASCII fold)']
       }
 
       const rows = CSV.trim().split('\n').slice(1).map(l => {

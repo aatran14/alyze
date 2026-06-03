@@ -1,0 +1,24 @@
+wikipedia/word break,c4a-standard-8-lssd,365.23,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/word break + word_like,c4a-standard-8-lssd,335.17,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/sentence break,c4a-standard-8-lssd,324.98,2026-06-02T19:22:40Z,b8fae2d
+analysis/tokenize only (case sensitive),c4a-standard-8-lssd,235.67,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ lowercase,c4a-standard-8-lssd,209.25,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ stopword removal (English),c4a-standard-8-lssd,187.16,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ stemming (English),c4a-standard-8-lssd,83.709,2026-06-02T19:22:40Z,b8fae2d
+analysis/full (max length + stopwords + stemming + ASCII fold),c4a-standard-8-lssd,83.564,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/word break,c4d-standard-8-lssd,335.92,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/word break + word_like,c4d-standard-8-lssd,335.60,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/sentence break,c4d-standard-8-lssd,394.60,2026-06-02T19:22:40Z,b8fae2d
+analysis/tokenize only (case sensitive),c4d-standard-8-lssd,273.35,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ lowercase,c4d-standard-8-lssd,238.46,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ stopword removal (English),c4d-standard-8-lssd,190.91,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ stemming (English),c4d-standard-8-lssd,96.585,2026-06-02T19:22:40Z,b8fae2d
+analysis/full (max length + stopwords + stemming + ASCII fold),c4d-standard-8-lssd,92.522,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/word break,c4-standard-8-lssd,299.48,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/word break + word_like,c4-standard-8-lssd,294.37,2026-06-02T19:22:40Z,b8fae2d
+wikipedia/sentence break,c4-standard-8-lssd,378.90,2026-06-02T19:22:40Z,b8fae2d
+analysis/tokenize only (case sensitive),c4-standard-8-lssd,243.63,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ lowercase,c4-standard-8-lssd,218.13,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ stopword removal (English),c4-standard-8-lssd,180.33,2026-06-02T19:22:40Z,b8fae2d
+analysis/+ stemming (English),c4-standard-8-lssd,84.615,2026-06-02T19:22:40Z,b8fae2d
+analysis/full (max length + stopwords + stemming + ASCII fold),c4-standard-8-lssd,83.052,2026-06-02T19:22:40Z,b8fae2d
