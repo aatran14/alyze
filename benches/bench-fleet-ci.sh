@@ -9,8 +9,9 @@ ALL_MACHINES=(
 
 MACHINES=("${@:-${ALL_MACHINES[@]}}")
 ZONE="${NAPKIN_GCP_ZONE:-us-east1-b}"
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-WORKER="$REPO_DIR/benches/bench-worker.sh"
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKER="$SCRIPT_DIR/bench-worker.sh"
 CSV="$REPO_DIR/data/results.csv"
 
 mkdir -p "$REPO_DIR/data"
