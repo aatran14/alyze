@@ -104,7 +104,9 @@ jobs:
           TODAY=$(date -u +%Y-%m-%d)
           mkdir -p data
 
-          # Merge GCP and AWS results (skip headers)
+          # Merge GCP and AWS results (skip headers).
+          # Start fresh so re-running on the same day overwrites, not appends.
+          rm -f "data/${TODAY}.csv"
           for f in artifacts/*/results.csv; do
             tail -n +2 "$f" >> "data/${TODAY}.csv"
           done
