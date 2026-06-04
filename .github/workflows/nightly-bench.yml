@@ -111,6 +111,11 @@ jobs:
             tail -n +2 "$f" >> "data/${TODAY}.csv"
           done
 
+          # Stamp every row of this day with one timestamp so the chart shows a
+          # single point per date (GCP and AWS otherwise finish seconds apart).
+          awk -F, -v OFS=, -v ts="${TODAY}T00:00:00Z" '{$4=ts; print}' \
+            "data/${TODAY}.csv" > "data/${TODAY}.csv.tmp" && mv "data/${TODAY}.csv.tmp" "data/${TODAY}.csv"
+
           # Rebuild combined CSV
           echo "benchmark,machine,throughput_mibs,timestamp,commit" > data/data.csv
           for f in data/2*.csv; do
