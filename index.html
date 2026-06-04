@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>alyze benchmarks</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -14,13 +15,19 @@
         <!-- <p class="sub">64 MiB English Wikipedia &middot; median of 16 samples</p> -->
         <p class="sub">64 MiB English Wikipedia</p>
       </div>
-      <div class="controls" id="controls"></div>
+      <div id="focus-slot" class="focus-slot"></div>
     </div>
   </header>
   <div id="app"></div>
 
   <script>
-    fetch('data/data.csv').then(r => r.text()).then(main)
+    fetch('data/data.csv')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text() })
+      .then(main)
+      .catch(err => {
+        document.getElementById('app').innerHTML =
+          `<p class="load-error">Could not load <code>data/data.csv</code> (${err.message}). Run a local server from the repo root, e.g. <code>python3 -m http.server</code>, then open <code>http://localhost:8000/</code>.</p>`
+      })
 
     function main(CSV) {
       const SHORT = {
@@ -38,6 +45,7 @@
         wikipedia: ['word break', 'word break + word_like', 'sentence break'],
         analysis: ['tokenize only (case sensitive)', '+ lowercase', '+ stopwords', '+ stemming', 'full pipeline']
       }
+      const FAMILY_ORDER = ['c4-', 'c4d-', 'c4a-']
 
       const rows = CSV.trim().split('\n').slice(1).map(l => {
         const p = l.split(',')
@@ -45,39 +53,204 @@
       }).filter(r => !isNaN(r.throughput))
 
       const machines = [...new Set(rows.map(r => r.machine))]
+      function byFamily(a, b) {
+        const ra = FAMILY_ORDER.findIndex(p => a.startsWith(p))
+        const rb = FAMILY_ORDER.findIndex(p => b.startsWith(p))
+        return (ra === -1 ? FAMILY_ORDER.length : ra) - (rb === -1 ? FAMILY_ORDER.length : rb)
+      }
+      const cores8 = machines.filter(m => m.includes('-standard-8-')).sort(byFamily)
+      const cores16 = machines.filter(m => m.includes('-standard-16-')).sort(byFamily)
       const timestamps = [...new Set(rows.map(r => r.ts))].sort()
       window.compareFrom = 0
       window.compareTo = timestamps.length - 1
-      window.cur = machines[0]
+      let cur = cores8[0] || machines[0]
+      let baseMachine = cur
+      if (!cur) {
+        document.getElementById('app').innerHTML =
+          '<p class="load-error">No machines in <code>data/data.csv</code>.</p>'
+        return
+      }
+      ensureBaseDate()
 
       function formatDate(ts) {
         return ts ? ts.split('T')[0].slice(5) : '—'
       }
 
-      function dateDrop(varName, curIdx) {
-        const label = formatDate(timestamps[curIdx])
-        const items = timestamps.map((ts, i) =>
-          `<div class="dd-item ${i === curIdx ? 'dd-on' : ''}" onclick="event.stopPropagation();${varName}=${i};render()">${formatDate(ts)}</div>`
-        ).join('')
-        return `<div class="dd"><span>${label}</span><div class="dd-list">${items}</div></div>`
+      function machineShort(m) {
+        const match = m.match(/^(.+)-standard-(\d+)-/)
+        return match ? `${match[1]}-${match[2]}` : m
       }
 
-      window.pickMachine = function(m) {
+      function machinesGrid() {
+        const n = Math.max(cores8.length, cores16.length)
+        const out = []
+        for (let i = 0; i < n; i++) {
+          if (cores8[i]) out.push(cores8[i])
+          if (cores16[i]) out.push(cores16[i])
+        }
+        return out
+      }
+
+      function hasMachineTs(m, ts) {
+        return rows.some(r => r.machine === m && r.ts === ts)
+      }
+
+      function timestampIndicesForMachine(m) {
+        return timestamps.map((ts, i) => i).filter(i => hasMachineTs(m, timestamps[i]))
+      }
+
+      function ensureBaseDate() {
+        const avail = timestampIndicesForMachine(baseMachine)
+        if (!avail.length) return
+        if (!hasMachineTs(baseMachine, timestamps[compareFrom])) compareFrom = avail[0]
+      }
+
+      function ensureFocusDate() {
+        const avail = timestampIndicesForMachine(cur)
+        if (!avail.length) return
+        if (!hasMachineTs(cur, timestamps[compareTo])) compareTo = avail[avail.length - 1]
+      }
+
+      function tsDay(ts) {
+        return ts ? ts.split('T')[0] : ''
+      }
+
+      function pickerCalendar(machine, selectedIdx, dateVar) {
+        const selTs = timestamps[selectedIdx] || timestamps[0]
+        const iso = tsDay(selTs)
+        const [y, mo] = iso.split('-').map(Number)
+        const monthLabel = new Date(y, mo - 1, 1).toLocaleString('en', { month: 'short', year: 'numeric' })
+        const dows = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+        const dowHead = dows.map(d => `<span class="cal-dow">${d}</span>`).join('')
+        const lead = new Date(y, mo - 1, 1).getDay()
+        const dim = new Date(y, mo, 0).getDate()
+        let cells = ''
+        for (let i = 0; i < lead; i++) cells += '<span class="cal-day cal-day--pad"></span>'
+        for (let d = 1; d <= dim; d++) {
+          const isoD = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+          const ti = timestamps.findIndex(t => tsDay(t) === isoD)
+          if (ti === -1) {
+            cells += `<span class="cal-day cal-day--off">${d}</span>`
+            continue
+          }
+          const miss = !hasMachineTs(machine, timestamps[ti])
+          const on = ti === selectedIdx
+          const cls = `cal-day${on ? ' cal-day--on' : ''}${miss ? ' cal-day--miss' : ' cal-day--pick'}`
+          if (miss) {
+            cells += `<span class="${cls}">${d}</span>`
+          } else {
+            cells += `<button type="button" class="${cls}" onclick="event.stopPropagation();${dateVar}=${ti};render()">${d}</button>`
+          }
+        }
+        return `<div class="compare-calendar">
+          <div class="cal-month">${monthLabel}</div>
+          <div class="cal-grid">${dowHead}${cells}</div>
+        </div>`
+      }
+
+      function combinedDateDrop(machine, dateIdx, dateVar, pickMachineFn) {
+        const label = formatDate(timestamps[dateIdx])
+        return `<div class="date-drop-wrap">
+          <div class="dd dd-date">
+            <span>${label}</span>
+            <div class="dd-list dd-list--compare">
+              <div class="dd-compare-cols">
+                <div class="dd-list-section dd-list-section--machine">
+                  <div class="dd-list-head">machine</div>
+                  ${machinePanel(machine, pickMachineFn, true)}
+                </div>
+                <div class="dd-list-section dd-list-section--date">
+                  <div class="dd-list-head">date</div>
+                  ${pickerCalendar(machine, dateIdx, dateVar)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`
+      }
+
+      function compareDateDrop() {
+        return combinedDateDrop(baseMachine, compareFrom, 'compareFrom', 'setBaseMachine')
+      }
+
+      function focusDateDrop() {
+        return combinedDateDrop(cur, compareTo, 'compareTo', 'setFocusMachine')
+      }
+
+      function machinePanel(selected, pickFn, asChecks = false) {
+        if (asChecks) {
+          const item = m =>
+            `<label class="machine-check" onclick="event.stopPropagation()" title="${m}">
+              <input type="checkbox" ${m === selected ? 'checked' : ''} onchange="event.stopPropagation();${pickFn}('${m}')">
+              <span>${machineShort(m)}</span>
+            </label>`
+          return `<div class="machine-panel-row">${machinesGrid().map(item).join('')}</div>`
+        }
+        const item = m =>
+          `<div class="dd-item ${m === selected ? 'dd-on' : ''}" title="${m}" onclick="event.stopPropagation();${pickFn}('${m}')">${machineShort(m)}</div>`
+        return `<div class="machine-panel-row">${machinesGrid().map(item).join('')}</div>`
+      }
+
+      function machinePicker(selected, pickFn, label, extraClass = '') {
+        const subtle = extraClass.includes('subtle')
+        const burger = subtle
+          ? ''
+          : '<span class="dd-burger-icon" aria-hidden="true"><span></span><span></span><span></span></span>'
+        const prefix = subtle ? '<span class="compare-hint">vs </span>' : ''
+        return `<div class="machine-picker ${extraClass}">
+          <button type="button" class="dd-machine-trigger" aria-label="${label}">
+            ${burger}${prefix}<span class="dd-machine-label">${selected}</span>
+          </button>
+          <div class="dd-panel">${machinePanel(selected, pickFn, true)}</div>
+        </div>`
+      }
+
+      function focusMachinePicker() {
+        return machinePicker(cur, 'setFocusMachine', 'Choose machine')
+      }
+
+      window.setFocusMachine = function(m) {
         cur = m
+        window.cur = m
+        ensureFocusDate()
+        window.keepDateDropOpen = 'focus'
         render()
       }
 
+      window.setBaseMachine = function(m) {
+        baseMachine = m
+        ensureBaseDate()
+        window.keepDateDropOpen = 'compare'
+        render()
+      }
+
+      function focusBar() {
+        return `<div class="focus-bar">${focusMachinePicker()}</div>`
+      }
+
+      const TABLE_COLS =
+        '<colgroup><col class="col-lbl"><col class="col-base"><col class="col-val"></colgroup>'
+
+      function dateRow() {
+        return `<table class="card-table date-row-table" cellspacing="0" cellpadding="0">${TABLE_COLS}
+          <tr class="date-col-row">
+            <td class="lbl-col"></td>
+            <td class="base-col"><div class="date-col-stack">
+              <div class="machine-scope-name machine-scope-name--compare" title="${baseMachine}">${machineShort(baseMachine)}</div>
+              ${compareDateDrop()}
+            </div></td>
+            <td class="val-col"><div class="date-col-stack">
+              <div class="machine-scope-name machine-scope-name--focus" title="${cur}">${machineShort(cur)}</div>
+              ${focusDateDrop()}
+            </div></td>
+          </tr></table>`
+      }
+
       function render() {
-        document.getElementById('controls').innerHTML =
-          machines.map(m =>
-            `<label class="machine-check"><input type="checkbox" ${m === cur ? 'checked' : ''} onchange="pickMachine('${m}')"><span>${m}</span></label>`
-          ).join('')
+        const valTs = timestamps[compareTo] ?? timestamps[timestamps.length - 1]
+        const baseTs = timestamps[compareFrom] ?? timestamps[0]
 
-        const latest = timestamps[compareTo] || timestamps[timestamps.length - 1]
-        const baseline = timestamps[compareFrom] || timestamps[0]
-
-        let tables = []
-        let charts = []
+        let pairs = []
 
         for (const [group, names] of Object.entries(GROUPS)) {
           const tableTitle = group === 'wikipedia' ? 'Tokenization (MiB/s)' : 'Analysis Pipeline (MiB/s)'
@@ -87,22 +260,20 @@
 
           // table
           let tableRows = ''
-          if (group === 'wikipedia' && timestamps.length > 1) {
-            tableRows += `<tr><td></td><td class="base-col">${dateDrop('compareFrom', compareFrom)}</td><td class="val-col">${dateDrop('compareTo', compareTo)}</td></tr>`
-          }
           tableRows += `<tr><td colspan="3" class="section-head"><b>${tableTitle}</b></td></tr>`
+          const sameSlot = baseMachine === cur && baseTs === valTs
           for (const name of names) {
             const bench = group + '/' + name
-            const r = rows.find(r => r.bench === bench && r.machine === cur && r.ts === latest)
-            const base = baseline !== latest ? rows.find(r => r.bench === bench && r.machine === cur && r.ts === baseline) : null
-            if (!r) continue
-            const baseText = base ? base.throughput.toFixed(1) : ''
+            const r = rows.find(row => row.bench === bench && row.machine === cur && row.ts === valTs)
+            const base = !sameSlot ? rows.find(row => row.bench === bench && row.machine === baseMachine && row.ts === baseTs) : null
+            const baseText = sameSlot ? '' : (base ? base.throughput.toFixed(1) : '—')
+            const valText = r ? r.throughput.toFixed(1) : '—'
             let valColor = ''
-            if (base) {
+            if (r && base) {
               const d = (r.throughput - base.throughput) / base.throughput * 100
               if (Math.abs(d) > 1) valColor = d > 0 ? 'up' : 'dn'
             }
-            tableRows += `<tr><td class="lbl-col">${SHORT[name] || name}</td><td class="base-col">${baseText}</td><td class="val-col ${valColor}">${r.throughput.toFixed(1)}</td></tr>`
+            tableRows += `<tr><td class="lbl-col">${SHORT[name] || name}</td><td class="base-col">${baseText}</td><td class="val-col ${valColor}">${valText}</td></tr>`
           }
           let tableNote = ''
           if (group === 'wikipedia') {
@@ -110,7 +281,8 @@
           } else if (group === 'analysis') {
             tableNote = `<p class="table-note"><sup>&dagger;</sup>Analysis (benches/wikipedia.rs, analysis group) — each row adds one stage to the pipeline, so the deltas approximate each filter's marginal cost.</p>`
           }
-          tables.push(`<table class="card-table" cellspacing="0" cellpadding="0">${tableRows}</table>${tableNote}`)
+          const tableHtml = `<div class="table-block"><table class="card-table" cellspacing="0" cellpadding="0">${TABLE_COLS}${tableRows}</table>${tableNote}</div>`
+          let chartHtml = ''
 
           // chart
           if (timestamps.length >= 2) {
@@ -145,7 +317,7 @@
             const series = names.map((name, i) => {
               const bench = group + '/' + name
               const pts = timestamps.map((ts, ti) => {
-                const r = rows.find(r => r.bench === bench && r.machine === cur && r.ts === ts)
+                const r = rows.find(row => row.bench === bench && row.machine === cur && row.ts === ts)
                 return r ? { x: ti, y: r.throughput } : null
               }).filter(Boolean)
               return { name, color: COLORS[i], pts }
@@ -169,9 +341,10 @@
             svg += `<text x="${W / 2}" y="${H - 4}" text-anchor="middle" fill="#94a3b8" font-size="9">date</text>`
             // date labels
             timestamps.forEach((ts, i) => {
-              const commit = rows.find(r => r.ts === ts)?.commit || ''
+              const commit = rows.find(r => r.ts === ts && r.machine === cur)?.commit || ''
               const lx = sx(i), ly = H - P.b + 14
-              svg += `<text x="${lx}" y="${ly}" text-anchor="end" fill="#94a3b8" font-size="11" transform="rotate(-45,${lx},${ly})" data-commit="${commit}" data-ti="${i}" class="date-tick">${ts.split('T')[0]}</text>`
+              const commitAttr = commit ? ` data-commit="${commit}"` : ''
+              svg += `<text x="${lx}" y="${ly}" text-anchor="end" fill="#94a3b8" font-size="11" transform="rotate(-45,${lx},${ly})"${commitAttr} data-ti="${i}" class="date-tick">${ts.split('T')[0]}</text>`
             })
             // hover columns (invisible rects)
             timestamps.forEach((ts, i) => {
@@ -185,22 +358,29 @@
                 svg += `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${DOT_R}" fill="${s.color}" data-ti="${p.x}" class="date-tick"/>`
               }
             }
-            // tooltip boxes (rendered last so they're on top)
+            // tooltip boxes (only where this machine has points on that date)
             timestamps.forEach((ts, i) => {
-              const commit = rows.find(r => r.ts === ts)?.commit || ''
               const dotsAtI = series.map(s => s.pts.find(p => p.x === i)).filter(Boolean)
+              if (!dotsAtI.length) return
+              const commit = rows.find(r => r.ts === ts && r.machine === cur)?.commit || ''
               const topDotY = Math.min(...dotsAtI.map(p => sy(p.y)))
+              const rowsAtI = dotsAtI.length
               const boxX = sx(i) + DOT_R + 6
               const boxY = topDotY - 6
               const boxW = 140
-              const boxH = series.length * 14 + 24
+              const boxH = rowsAtI * 14 + (commit ? 24 : 10)
+              const textStart = boxY + (commit ? 28 : 14)
               svg += `<g class="val-label date-tick" data-ti="${i}" style="display:none">`
               svg += `<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" fill="white" stroke="#e2e8f0"/>`
-              svg += `<text font-size="9" y="${boxY + 14}"><tspan x="${boxX + 6}" fill="#94a3b8">${commit}</tspan></text>`
-              series.forEach((s, si) => {
+              if (commit) {
+                svg += `<text font-size="9" y="${boxY + 14}"><tspan x="${boxX + 6}" fill="#94a3b8">${commit}</tspan></text>`
+              }
+              let row = 0
+              series.forEach(s => {
                 const pt = s.pts.find(p => p.x === i)
                 if (!pt) return
-                svg += `<text font-size="9" y="${boxY + 28 + si * 14}"><tspan x="${boxX + 6}" fill="#334155">${SHORT[s.name]||s.name}</tspan><tspan x="${boxX + boxW - 6}" text-anchor="end" fill="${s.color}">${pt.y.toFixed(1)}</tspan></text>`
+                svg += `<text font-size="9" y="${textStart + row * 14}"><tspan x="${boxX + 6}" fill="#334155">${SHORT[s.name]||s.name}</tspan><tspan x="${boxX + boxW - 6}" text-anchor="end" fill="${s.color}">${pt.y.toFixed(1)}</tspan></text>`
+                row++
               })
               svg += `</g>`
             })
@@ -215,17 +395,72 @@
               svg += `<circle cx="${lx}" cy="${ly - 4}" r="${LEGEND_DOT_R}" fill="${s.color}"/>`
               svg += `<text x="${lx + 10}" y="${ly}" fill="#64748b" font-size="${LEGEND_FONT}">${SHORT[s.name] || s.name}</text>`
             })
-            charts.push(`<div class="copyable chart-card"><button class="copy-btn" onclick="copyEl(this.parentElement)">copy</button><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${svg}</svg></div>`)
+            chartHtml = `<div class="copyable chart-card"><button class="copy-btn" onclick="copyEl(this.parentElement)">copy</button><div class="chart-scroll"><svg class="chart-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${svg}</svg></div></div>`
           }
+          pairs.push({ table: tableHtml, chart: chartHtml })
         }
 
-        let html = `<div class="benchmark-wrap"><p class="repo-links"><a href="https://github.com/turbopuffer/alyze">turbopuffer/alyze</a> | <a href="https://github.com/aatran14/alyze">aatran14/alyze</a></p><div class="copyable outer-card"><div class="copy-anchor"><button class="copy-btn" onclick="copyEl(this.closest('.copyable'))">copy</button></div><div class="outer-card-machine">${cur}</div>`
-        for (let i = 0; i < tables.length; i++) {
-          html += `<div class="grid"><div class="card">${tables[i]}</div>${charts[i] || ''}</div>`
-        }
-        html += `</div></div>`
+        const benchmarkRows = pairs.map((p, i) =>
+          `<div class="benchmark-row">
+            <div class="benchmark-row-table">${i === 0 ? dateRow() : ''}${p.table}</div>
+            <div class="benchmark-row-chart">${p.chart}</div>
+          </div>`
+        ).join('')
 
-        document.getElementById('app').innerHTML = html
+        document.getElementById('focus-slot').innerHTML = focusBar()
+        document.getElementById('app').innerHTML =
+          `<div class="benchmark-wrap"><p class="repo-links"><a href="https://github.com/turbopuffer/alyze">turbopuffer/alyze</a> | <a href="https://github.com/aatran14/alyze">aatran14/alyze</a></p><div class="copyable outer-card"><div class="copy-anchor"><button class="copy-btn" onclick="copyEl(this.closest('.copyable'))">copy</button></div><div class="benchmark-body"><div class="outer-card-machine">${cur}</div>${benchmarkRows}</div></div></div>`
+
+        bindMachinePanels()
+        bindDateDrops()
+        bindCopyPreview()
+      }
+
+      function bindCopyPreview() {
+        document.querySelectorAll('.outer-card .copy-anchor').forEach(anchor => {
+          if (anchor.dataset.copyPreviewBound) return
+          anchor.dataset.copyPreviewBound = '1'
+          const card = anchor.closest('.outer-card')
+          anchor.addEventListener('mouseenter', () => card.classList.add('copy-preview'))
+          anchor.addEventListener('mouseleave', () => card.classList.remove('copy-preview'))
+        })
+      }
+
+      function bindDateDrops() {
+        document.querySelectorAll('.date-drop-wrap .dd-date').forEach(dd => {
+          if (dd.dataset.dateDropBound) return
+          dd.dataset.dateDropBound = '1'
+          dd.addEventListener('mouseenter', () => dd.classList.add('is-date-drop-open'))
+          dd.addEventListener('mouseleave', () => dd.classList.remove('is-date-drop-open'))
+        })
+        const which = window.keepDateDropOpen
+        if (which === 'compare' || which === 'focus') {
+          const wrap = which === 'compare' ? '.date-row-table .base-col' : '.date-row-table .val-col'
+          const dd = document.querySelector(`${wrap} .date-drop-wrap .dd-date`)
+          if (dd) dd.classList.add('is-date-drop-open')
+          window.keepDateDropOpen = false
+        }
+      }
+
+      function bindMachinePanels() {
+        document.querySelectorAll('.machine-picker').forEach(picker => {
+          if (picker.dataset.bound) return
+          picker.dataset.bound = '1'
+          const trigger = picker.querySelector('.dd-machine-trigger')
+          trigger.addEventListener('click', e => {
+            e.stopPropagation()
+            document.querySelectorAll('.machine-picker.is-open').forEach(p => {
+              if (p !== picker) p.classList.remove('is-open')
+            })
+            picker.classList.toggle('is-open')
+          })
+        })
+        if (!window.machinePanelClickBound) {
+          window.machinePanelClickBound = true
+          document.addEventListener('click', () => {
+            document.querySelectorAll('.machine-picker.is-open').forEach(p => p.classList.remove('is-open'))
+          })
+        }
       }
 
       window.render = render
@@ -233,7 +468,7 @@
 
       document.addEventListener('mouseover', e => {
         const t = e.target.closest('[data-commit]')
-        if (!t) return
+        if (!t?.dataset.commit) return
         const card = t.closest('.chart-card')
         let tip = card.querySelector('.tip')
         if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; card.appendChild(tip) }
@@ -251,10 +486,12 @@
 
       document.addEventListener('mouseover', e => {
         const tick = e.target.closest('.date-tick')
-        if (!tick) return
+        if (!tick?.dataset.ti) return
         const svg = tick.closest('svg')
         const ti = tick.dataset.ti
-        svg.querySelectorAll('.val-label').forEach(l => l.style.display = l.dataset.ti === ti ? 'block' : 'none')
+        svg.querySelectorAll('.val-label').forEach(l => {
+          l.style.display = l.dataset.ti === ti ? 'block' : 'none'
+        })
       })
       document.addEventListener('mouseout', e => {
         const tick = e.target.closest('.date-tick')
@@ -269,14 +506,21 @@
       const btn = el.querySelector('.copy-btn')
       const btns = el.querySelectorAll('.copy-btn')
       btns.forEach(b => b.style.opacity = '0')
-      html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
-        canvas.toBlob(blob => {
-          navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-          btns.forEach(b => b.style.opacity = '')
-          btn.textContent = 'copied!'
-          setTimeout(() => btn.textContent = 'copy', 1500)
-        })
-      }).catch(() => btns.forEach(b => b.style.opacity = ''))
+      el.classList.add('copy-preview')
+      const done = () => {
+        el.classList.remove('copy-preview')
+        btns.forEach(b => b.style.opacity = '')
+      }
+      requestAnimationFrame(() => {
+        html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+          canvas.toBlob(blob => {
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            btn.textContent = 'copied!'
+            setTimeout(() => btn.textContent = 'copy', 1500)
+            done()
+          })
+        }).catch(done)
+      })
     }
   </script>
 </body>
