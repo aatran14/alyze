@@ -55,15 +55,11 @@ jobs:
 
           mkdir -p data
           tail -n +2 $GITHUB_WORKSPACE/alyze/data/results.csv > "data/${TODAY}.csv"
-
-          echo "benchmark,machine,throughput_mibs,timestamp,commit" > data/data.csv
-          for f in data/2*.csv; do
-            cat "$f" >> data/data.csv
-          done
+          make publish
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ index.html style.css
+          git add data/ index.html
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "bench: ${TODAY} results"
           git push
