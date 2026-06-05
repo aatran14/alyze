@@ -21,6 +21,7 @@ pub struct TokenProperties(u8);
 impl TokenProperties {
     const WORD_LIKE_MASK: u8 = 0b0000_0001;
     const NON_ASCII_MASK: u8 = 0b0000_0010;
+    const HAS_ASCII_UPPER_MASK: u8 = 0b0000_0100;
 
     pub(crate) const NON_ASCII: Self = Self(Self::NON_ASCII_MASK);
     pub(crate) const WORD_LIKE: Self = Self(Self::WORD_LIKE_MASK);
@@ -39,6 +40,12 @@ impl TokenProperties {
     // `is_ascii()` returns true when the bit is unset (vacuously true for the empty span).
     pub fn is_ascii(&self) -> bool {
         self.0 & Self::NON_ASCII_MASK == 0
+    }
+
+    // Stored disjunctively: a single ASCII uppercase byte (A–Z) in the span sets this bit.
+    // `has_ascii_upper()` returns true when the bit is set (vacuously false for the empty span).
+    pub fn has_ascii_upper(&self) -> bool {
+        self.0 & Self::HAS_ASCII_UPPER_MASK != 0
     }
 }
 
@@ -246,8 +253,11 @@ const ASCII_BYTE_INFO: [u8; 128] = {
     let mut i = 0u8;
     loop {
         t[i as usize] = match i {
-            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => {
-                ASCII_WORD_CONTINUE | TokenProperties::WORD_LIKE_MASK
+            b'a'..=b'z' | b'0'..=b'9' => ASCII_WORD_CONTINUE | TokenProperties::WORD_LIKE_MASK,
+            b'A'..=b'Z' => {
+                ASCII_WORD_CONTINUE
+                    | TokenProperties::WORD_LIKE_MASK
+                    | TokenProperties::HAS_ASCII_UPPER_MASK
             }
             b'_' => ASCII_WORD_CONTINUE,
             _ => 0,

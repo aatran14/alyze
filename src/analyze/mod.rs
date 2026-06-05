@@ -216,7 +216,7 @@ impl Analyzer {
                 }
 
                 // Lowercasing
-                if !self.options.case_sensitive {
+                if !self.options.case_sensitive && (!props.is_ascii() || props.has_ascii_upper()) {
                     token_text.lowercase_in_place(props.is_ascii());
                 }
 
