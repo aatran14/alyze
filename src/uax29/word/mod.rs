@@ -426,6 +426,30 @@ mod tests {
         assert_props("ab🛑", vec![(0, true), (2, true), (6, false)]);
     }
 
+    #[test]
+    fn tokenizer_has_ascii_upper_sanity() {
+        // Each emit reports properties of the span just closed; the leading boundary at 0 has
+        // no preceding span, so has_ascii_upper is vacuously false.
+        fn assert_has_ascii_upper(s: &str, expected: Vec<(usize, bool)>) {
+            let mut got: Vec<(usize, bool)> = Vec::new();
+            tokenize(s, Options::default(), |bp, props| {
+                got.push((bp, props.has_ascii_upper()));
+                true
+            });
+            assert_eq!(got, expected, "input: {:?}", s);
+        }
+
+        assert_has_ascii_upper("hello", vec![(0, false), (5, false)]);
+        assert_has_ascii_upper("Hello", vec![(0, false), (5, true)]);
+        assert_has_ascii_upper("HELLO", vec![(0, false), (5, true)]);
+        assert_has_ascii_upper("aB", vec![(0, false), (2, true)]);
+        assert_has_ascii_upper("123", vec![(0, false), (3, false)]);
+
+        // The breaking char is non-ASCII but starts the *next* token, so "ab" must still
+        // report has_ascii_upper=false.
+        assert_has_ascii_upper("ab🛑", vec![(0, false), (2, false), (6, false)]);
+    }
+
     fn assert_word_like(s: &str, expected: Vec<(usize, bool)>) {
         let mut got: Vec<(usize, bool)> = Vec::new();
         tokenize(s, Options::default(), |bp, props| {
