@@ -215,3 +215,51 @@ analysis/+ lowercase,c4-standard-16-lssd,206.01,2026-06-06T00:00:00Z,58b13dc
 analysis/+ stopwords,c4-standard-16-lssd,174.06,2026-06-06T00:00:00Z,58b13dc
 analysis/+ stemming,c4-standard-16-lssd,85.650,2026-06-06T00:00:00Z,58b13dc
 analysis/full pipeline,c4-standard-16-lssd,82.565,2026-06-06T00:00:00Z,58b13dc
+wikipedia/word break,aws-c7a.4xlarge,308.20,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break + word_like,aws-c7a.4xlarge,311.68,2026-06-07T00:00:00Z,58b13dc
+wikipedia/sentence break,aws-c7a.4xlarge,368.45,2026-06-07T00:00:00Z,58b13dc
+analysis/tokenize only (case sensitive),aws-c7a.4xlarge,244.21,2026-06-07T00:00:00Z,58b13dc
+analysis/+ lowercase,aws-c7a.4xlarge,190.99,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stopwords,aws-c7a.4xlarge,163.91,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stemming,aws-c7a.4xlarge,75.852,2026-06-07T00:00:00Z,58b13dc
+analysis/full pipeline,aws-c7a.4xlarge,73.724,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break,aws-c7i.4xlarge,229.65,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break + word_like,aws-c7i.4xlarge,226.89,2026-06-07T00:00:00Z,58b13dc
+wikipedia/sentence break,aws-c7i.4xlarge,290.80,2026-06-07T00:00:00Z,58b13dc
+analysis/tokenize only (case sensitive),aws-c7i.4xlarge,186.36,2026-06-07T00:00:00Z,58b13dc
+analysis/+ lowercase,aws-c7i.4xlarge,152.43,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stopwords,aws-c7i.4xlarge,129.35,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stemming,aws-c7i.4xlarge,63.999,2026-06-07T00:00:00Z,58b13dc
+analysis/full pipeline,aws-c7i.4xlarge,60.994,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break,aws-c7g.4xlarge,267.45,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break + word_like,aws-c7g.4xlarge,254.22,2026-06-07T00:00:00Z,58b13dc
+wikipedia/sentence break,aws-c7g.4xlarge,277.73,2026-06-07T00:00:00Z,58b13dc
+analysis/tokenize only (case sensitive),aws-c7g.4xlarge,186.24,2026-06-07T00:00:00Z,58b13dc
+analysis/+ lowercase,aws-c7g.4xlarge,152.29,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stopwords,aws-c7g.4xlarge,136.74,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stemming,aws-c7g.4xlarge,60.355,2026-06-07T00:00:00Z,58b13dc
+analysis/full pipeline,aws-c7g.4xlarge,58.650,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break,c4d-standard-16-lssd,340.38,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break + word_like,c4d-standard-16-lssd,339.15,2026-06-07T00:00:00Z,58b13dc
+wikipedia/sentence break,c4d-standard-16-lssd,398.07,2026-06-07T00:00:00Z,58b13dc
+analysis/tokenize only (case sensitive),c4d-standard-16-lssd,281.49,2026-06-07T00:00:00Z,58b13dc
+analysis/+ lowercase,c4d-standard-16-lssd,227.81,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stopwords,c4d-standard-16-lssd,187.11,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stemming,c4d-standard-16-lssd,96.908,2026-06-07T00:00:00Z,58b13dc
+analysis/full pipeline,c4d-standard-16-lssd,92.738,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break,c4a-standard-16-lssd,358.98,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break + word_like,c4a-standard-16-lssd,330.63,2026-06-07T00:00:00Z,58b13dc
+wikipedia/sentence break,c4a-standard-16-lssd,325.88,2026-06-07T00:00:00Z,58b13dc
+analysis/tokenize only (case sensitive),c4a-standard-16-lssd,236.06,2026-06-07T00:00:00Z,58b13dc
+analysis/+ lowercase,c4a-standard-16-lssd,193.85,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stopwords,c4a-standard-16-lssd,172.61,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stemming,c4a-standard-16-lssd,81.647,2026-06-07T00:00:00Z,58b13dc
+analysis/full pipeline,c4a-standard-16-lssd,81.228,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break,c4-standard-16-lssd,299.56,2026-06-07T00:00:00Z,58b13dc
+wikipedia/word break + word_like,c4-standard-16-lssd,294.61,2026-06-07T00:00:00Z,58b13dc
+wikipedia/sentence break,c4-standard-16-lssd,378.49,2026-06-07T00:00:00Z,58b13dc
+analysis/tokenize only (case sensitive),c4-standard-16-lssd,245.85,2026-06-07T00:00:00Z,58b13dc
+analysis/+ lowercase,c4-standard-16-lssd,200.80,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stopwords,c4-standard-16-lssd,169.58,2026-06-07T00:00:00Z,58b13dc
+analysis/+ stemming,c4-standard-16-lssd,83.366,2026-06-07T00:00:00Z,58b13dc
+analysis/full pipeline,c4-standard-16-lssd,80.173,2026-06-07T00:00:00Z,58b13dc
