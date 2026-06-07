@@ -159,10 +159,6 @@ function showLoadError(err) {
 }
 
 function boot() {
-  if (window.__ALYZE_DATA__?.rows) {
-    createApp(window.__ALYZE_DATA__.rows)
-    return
-  }
   fetch('data/data.csv')
     .then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
