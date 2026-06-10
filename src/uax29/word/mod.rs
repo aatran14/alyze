@@ -1,4 +1,5 @@
 pub(crate) mod properties;
+pub mod spec_probe;
 pub(crate) mod transitions;
 
 use crate::uax29::Action;

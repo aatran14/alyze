@@ -16,7 +16,8 @@ use parquet::{
     schema::types::Type,
 };
 
-criterion_group!(benches, wikipedia_benchmark, analysis_benchmark);
+// was: criterion_group!(benches, wikipedia_benchmark, analysis_benchmark);
+criterion_group!(benches, wikipedia_benchmark, analysis_benchmark, spec_probe_benchmark);
 criterion_main!(benches);
 
 pub fn wikipedia_benchmark(c: &mut Criterion) {
@@ -137,6 +138,63 @@ pub fn analysis_benchmark(c: &mut Criterion) {
             })
         });
     }
+
+    group.finish();
+}
+
+// PERF PROBE: does interleaving K independent DFA cursors lift single-core throughput?
+// Compares serial `word break` against the striped speculative tokenizer at K = 1, 2, 4, 8.
+pub fn spec_probe_benchmark(c: &mut Criterion) {
+    use alyze::uax29::word::spec_probe::tokenize_striped;
+
+    let mut group = c.benchmark_group("spec_probe");
+    let n_bytes = 64 << 20; // 64 MiB
+    let texts = load_n_bytes(n_bytes);
+    group.throughput(Throughput::Bytes(n_bytes));
+    group.sample_size(16);
+
+    // Sanity: total breakpoint count per K (printed once), to see how far speculation diverges.
+    let serial_count: usize = {
+        let mut count = 0;
+        for text in &texts {
+            uax29::word::tokenize(text, uax29::word::Options::default(), |_, _| {
+                count += 1;
+                true
+            });
+        }
+        count
+    };
+    eprintln!("spec_probe: serial breakpoint count = {serial_count}");
+
+    macro_rules! bench_k {
+        ($name:literal, $k:literal) => {{
+            let mut count = 0;
+            for text in &texts {
+                tokenize_striped::<$k>(text, |_, _| count += 1);
+            }
+            eprintln!(
+                "spec_probe: K={} breakpoint count = {} (serial {}, diff {})",
+                $k,
+                count,
+                serial_count,
+                count as i64 - serial_count as i64
+            );
+            group.bench_function($name, |b| {
+                b.iter(|| {
+                    let mut count = 0;
+                    for text in &texts {
+                        tokenize_striped::<$k>(text, |_, _| count += 1);
+                    }
+                    std::hint::black_box(&count);
+                })
+            });
+        }};
+    }
+
+    bench_k!("striped K=1", 1);
+    bench_k!("striped K=2", 2);
+    bench_k!("striped K=4", 4);
+    bench_k!("striped K=8", 8);
 
     group.finish();
 }
