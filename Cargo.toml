@@ -29,3 +29,7 @@ ureq = "3.2.0"
 [[bench]]
 name = "wikipedia"
 harness = false
+
+[[bench]]
+name = "prof"
+harness = false

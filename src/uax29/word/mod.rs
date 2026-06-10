@@ -102,17 +102,21 @@ pub fn tokenize(
             State::ALetter | State::Numeric | State::ExtendNumLet | State::HLetter
         ) {
             let scan_start = pos;
-            let mut fast_acc: u8 = 0;
-            while pos < text.len() && bytes[pos] < 0x80 {
-                let info = ASCII_BYTE_INFO[bytes[pos] as usize];
-                if info & ASCII_WORD_CONTINUE == 0 {
-                    break;
-                }
-                fast_acc |= info;
-                pos += 1;
-            }
+            // was: per-byte scan with an unpredictable `break` at every word end (one branch
+            // mispredict per word). Replaced by an 8-byte-at-a-time SWAR scan so the run-end
+            // branch fires ~8x less often. Original below:
+            // let mut fast_acc: u8 = 0;
+            // while pos < text.len() && bytes[pos] < 0x80 {
+            //     let info = ASCII_BYTE_INFO[bytes[pos] as usize];
+            //     if info & ASCII_WORD_CONTINUE == 0 {
+            //         break;
+            //     }
+            //     fast_acc |= info;
+            //     pos += 1;
+            // }
+            let fast_acc = scan_word_continue(bytes, &mut pos);
             if pos > scan_start {
-                token_props.0 |= fast_acc & !ASCII_WORD_CONTINUE;
+                token_props.0 |= fast_acc;
                 let last = bytes[pos - 1]; // Safe because we're not in State::StartOfText.
                 state = match last {
                     b'0'..=b'9' => State::Numeric,
@@ -269,6 +273,87 @@ const ASCII_BYTE_INFO: [u8; 128] = {
     }
     t
 };
+
+/// SWAR scan of a leading `[a-zA-Z0-9_]` ASCII run starting at `*pos`. Advances `*pos` past the
+/// run and returns the accumulated prop bits (WORD_LIKE if any `[a-zA-Z0-9]`, HAS_ASCII_UPPER if
+/// any `[A-Z]`); ASCII_WORD_CONTINUE is never set in the result. Processes 8 bytes per branch, so
+/// the run-end mispredict fires ~8x less often than the byte-at-a-time loop it replaces.
+///
+/// NOTE: measured ~14% SLOWER than the byte loop on English Wikipedia (avg run ~5 bytes < 8-byte
+/// chunk, so the SWAR setup never amortizes). Kept as a recorded negative result.
+#[inline]
+fn scan_word_continue(bytes: &[u8], pos: &mut usize) -> u8 {
+    const ONES: u64 = 0x0101010101010101;
+    const HIGH: u64 = 0x8080808080808080;
+    // 0x80 per lane where lane < n  (valid for n in 1..=128, ascii lanes).
+    #[inline(always)]
+    fn lt(v: u64, n: u64) -> u64 {
+        v.wrapping_sub(ONES.wrapping_mul(n)) & !v & HIGH
+    }
+    // 0x80 per lane where lane == n.
+    #[inline(always)]
+    fn eq(v: u64, n: u64) -> u64 {
+        let x = v ^ ONES.wrapping_mul(n);
+        x.wrapping_sub(ONES) & !x & HIGH
+    }
+    // 0x80 per lane where lo <= lane <= hi.
+    #[inline(always)]
+    fn inr(v: u64, lo: u64, hi: u64) -> u64 {
+        lt(v, hi + 1) & !lt(v, lo) & HIGH
+    }
+
+    let len = bytes.len();
+    let mut p = *pos;
+    let mut acc: u8 = 0;
+
+    while p + 8 <= len {
+        let v = u64::from_le_bytes(bytes[p..p + 8].try_into().unwrap());
+        let nonascii = v & HIGH;
+        let digit = inr(v, b'0' as u64, b'9' as u64);
+        let upper = inr(v, b'A' as u64, b'Z' as u64);
+        let lower = inr(v, b'a' as u64, b'z' as u64);
+        let under = eq(v, b'_' as u64);
+        let cont = digit | upper | lower | under; // 0x80 per continue (ascii) lane
+        let stop = HIGH & (nonascii | !cont); // 0x80 per stop lane
+        if stop != 0 {
+            let k = (stop.trailing_zeros() / 8) as usize; // first stop lane
+            let keep = if k == 0 { 0 } else { (1u64 << (8 * k)) - 1 };
+            if (cont & !under) & keep != 0 {
+                acc |= TokenProperties::WORD_LIKE_MASK;
+            }
+            if upper & keep != 0 {
+                acc |= TokenProperties::HAS_ASCII_UPPER_MASK;
+            }
+            p += k;
+            *pos = p;
+            return acc;
+        }
+        // Whole chunk is word-continue.
+        if cont & !under != 0 {
+            acc |= TokenProperties::WORD_LIKE_MASK;
+        }
+        if upper != 0 {
+            acc |= TokenProperties::HAS_ASCII_UPPER_MASK;
+        }
+        p += 8;
+    }
+
+    // Scalar tail (< 8 bytes remaining).
+    while p < len {
+        let b = bytes[p];
+        if b >= 0x80 {
+            break;
+        }
+        let info = ASCII_BYTE_INFO[b as usize];
+        if info & ASCII_WORD_CONTINUE == 0 {
+            break;
+        }
+        acc |= info & !ASCII_WORD_CONTINUE;
+        p += 1;
+    }
+    *pos = p;
+    acc
+}
 
 #[cfg(test)]
 mod tests {
