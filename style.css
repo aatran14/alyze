@@ -275,8 +275,8 @@ body {
 
 .machine-panel-row {
   display: grid;
-  /* Exactly 2 columns x 3 rows (since we typically show 3 machines per vendor). */
-  grid-template-columns: repeat(2, minmax(7.25rem, max-content));
+  /* One column per vendor (GCP / AWS / Azure), 3 machines each. */
+  grid-template-columns: repeat(3, minmax(7.25rem, max-content));
   grid-template-rows: repeat(3, auto);
   column-gap: 14px;
   row-gap: 6px;

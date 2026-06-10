@@ -5,15 +5,12 @@ import { buildChartHtml } from './chart.js'
 export function machinesGrid(ctx) {
   const gcp16 = ctx.machinesOrdered.filter(m => m.includes('-standard-16-')).sort(byFamily)
   const aws = ctx.machinesOrdered.filter(m => m.startsWith('aws-')).sort((a, b) => a.localeCompare(b))
-  if (gcp16.length && aws.length) {
-    const n = Math.min(gcp16.length, aws.length)
+  const azure = ctx.machinesOrdered.filter(m => m.startsWith('azure-')).sort((a, b) => a.localeCompare(b))
+  const cols = [gcp16, aws, azure].filter(c => c.length)
+  if (cols.length > 1) {
     const out = []
-    for (let i = 0; i < n; i++) {
-      out.push(gcp16[i])
-      out.push(aws[i])
-    }
-    if (gcp16.length > n) out.push(...gcp16.slice(n))
-    if (aws.length > n) out.push(...aws.slice(n))
+    const max = Math.max(...cols.map(c => c.length))
+    for (let i = 0; i < max; i++) for (const c of cols) if (c[i]) out.push(c[i])
     return out
   }
   return ctx.machinesOrdered

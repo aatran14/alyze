@@ -27,6 +27,7 @@ export function machineShort(m) {
   const match = m.match(/^(.+)-standard-(\d+)-/)
   if (match) return `${match[1]}-${match[2]}`
   if (m.startsWith('aws-')) return m.slice(4)
+  if (m.startsWith('azure-Standard_')) return m.slice('azure-Standard_'.length)
   return m
 }
 

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ALL_MACHINES=(
-  Standard_F8as_v6
-  Standard_D8s_v6
-  Standard_D8ps_v6
+  Standard_D8ads_v6
+  Standard_D8ds_v6
+  Standard_D8pds_v6
 )
 
 MACHINES=("${@:-${ALL_MACHINES[@]}}")
