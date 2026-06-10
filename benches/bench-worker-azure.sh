@@ -20,19 +20,24 @@ trap cleanup EXIT
 
 az group create --name "$RG" --location "$REGION" >/dev/null
 
+# Per-machine key: parallel workers can't share ~/.ssh/id_rsa (--generate-ssh-keys
+# would race and clobber each other, leaving most VMs with the wrong key).
+KEY="$HOME/.ssh/$NAME"
+ssh-keygen -t rsa -b 2048 -f "$KEY" -N "" -q
+
 PUBLIC_IP=$(az vm create \
   --resource-group "$RG" \
   --name "$NAME" \
   --image "$IMAGE" \
   --size "$SIZE" \
   --admin-username azureuser \
-  --generate-ssh-keys \
+  --ssh-key-values "$KEY.pub" \
   --public-ip-sku Standard \
   --os-disk-size-gb 50 \
   --query publicIpAddress --output tsv)
 
-SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR azureuser@$PUBLIC_IP"
-SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR azureuser@$PUBLIC_IP"
+SCP="scp -i $KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 for i in $(seq 1 30); do
   $SSH "echo ready" 2>/dev/null && break
