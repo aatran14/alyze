@@ -120,7 +120,13 @@ pub fn tokenize(
                     _ => State::ALetter,
                 };
                 last_was_zwj = false;
-                continue;
+                // was: `continue;` — looping back here wastefully re-enters the fast path (gate +
+                // a zero-byte scan + exit) before the delimiter byte that stopped the scan gets
+                // handled, once per word (~every 2.87 bytes). Instead fall straight through to the
+                // single-char path for bytes[pos]. Guard EOT, since fall-through indexes bytes[pos].
+                if pos >= text.len() {
+                    continue;
+                }
             }
         }
 
