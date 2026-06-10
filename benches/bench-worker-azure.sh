@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SIZE="${1:?Usage: bench-worker-azure.sh <vm-size>}"
-REGION="${AZURE_REGION:-centralus}"
+REGION="${AZURE_REGION:-westus3}"
 REPO_DIR="${REPO_DIR:-.}"
 CSV="$REPO_DIR/data/results.csv"
 NAME="alyze-${SIZE//_/-}"
