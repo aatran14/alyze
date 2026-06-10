@@ -12,12 +12,21 @@ function bindCopyPreview() {
   })
 }
 
-function bindDateDrops() {
+function bindDateDrops(ctx) {
   document.querySelectorAll('.date-drop-wrap .dd-date').forEach(dd => {
-    if (dd.dataset.dateDropBound) return
-    dd.dataset.dateDropBound = '1'
-    dd.addEventListener('mouseenter', () => dd.classList.add('is-date-drop-open'))
-    dd.addEventListener('mouseleave', () => dd.classList.remove('is-date-drop-open'))
+    const variant = dd.classList.contains('dd-date--compare') ? 'compare' : 'focus'
+    if (!dd.dataset.dateDropBound) {
+      dd.dataset.dateDropBound = '1'
+      // was: open/close on hover with no persisted state, so clicking a date (which re-renders
+      // the DOM) dropped the open class and collapsed the dropdown.
+      // dd.addEventListener('mouseenter', () => dd.classList.add('is-date-drop-open'))
+      // dd.addEventListener('mouseleave', () => dd.classList.remove('is-date-drop-open'))
+      dd.addEventListener('mouseenter', () => { ctx.dateDropOpen = variant; dd.classList.add('is-date-drop-open') })
+      dd.addEventListener('mouseleave', () => { ctx.dateDropOpen = null; dd.classList.remove('is-date-drop-open') })
+    }
+    // Re-apply open state after render() rebuilds the DOM, so a date click keeps the dropdown
+    // open under the cursor instead of collapsing it.
+    if (ctx.dateDropOpen === variant) dd.classList.add('is-date-drop-open')
   })
 }
 
@@ -123,24 +132,31 @@ export function createApp(rows) {
   ensureBaseDate(ctx)
 
   function render() {
-    window.compareFrom = ctx.compareFrom
-    window.compareTo = ctx.compareTo
+    // was: pushed ctx -> window, clobbering the value the calendar's inline onclick
+    // (`compareTo=ti`) had just set — so every date click was discarded before draw.
+    // Pull window -> ctx instead so the calendar's global assignment actually takes effect.
+    // window.compareFrom = ctx.compareFrom
+    // window.compareTo = ctx.compareTo
+    ctx.compareFrom = window.compareFrom
+    ctx.compareTo = window.compareTo
     window.cur = ctx.cur
     renderApp(ctx)
     bindMachinePanels(ctx)
-    bindDateDrops()
+    bindDateDrops(ctx)
     bindCopyPreview()
   }
 
   window.setFocusMachine = m => {
     ctx.cur = m
     ensureFocusDate(ctx)
+    window.compareTo = ctx.compareTo // push date back so render()'s window->ctx pull keeps it
     render()
   }
 
   window.setBaseMachine = m => {
     ctx.baseMachine = m
     ensureBaseDate(ctx)
+    window.compareFrom = ctx.compareFrom // push date back so render()'s window->ctx pull keeps it
     render()
   }
 
