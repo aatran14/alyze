@@ -108,7 +108,7 @@ export function createApp(rows) {
   const machines = [...new Set(rows.map(r => r.machine))].filter(m => !m.includes('-standard-8-'))
   const machinesOrdered = machines.slice().sort(byFamily)
   const cores8 = machines.filter(m => m.includes('-standard-8-')).sort(byFamily)
-  const timestamps = [...new Set(rows.map(r => r.ts))].sort()
+  const timestamps = [...new Set(rows.map(r => r.ts))].sort().slice(-14)
 
   const ctx = {
     rows,
