@@ -59,6 +59,20 @@ export function buildChartHtml(ctx, group, names, chartTitle) {
     }
   }
 
+  const legX = gridEnd + K.LEGEND_GAP
+  const legY0 = K.LEGEND_TOP
+  const legH = series.length * K.LEGEND_SPACING
+  const LEGEND_PAD = 8
+  svg += `<rect x="${legX - LEGEND_PAD}" y="${legY0 - K.LEGEND_SPACING + LEGEND_PAD / 2}" width="${P.r - K.LEGEND_GAP}" height="${legH + LEGEND_PAD}" rx="0" fill="white" stroke="#e2e8f0"/>`
+  series.forEach((s, i) => {
+    const lx = legX
+    const ly = legY0 + i * K.LEGEND_SPACING
+    svg += `<circle cx="${lx}" cy="${ly - 4}" r="${K.LEGEND_DOT_R}" fill="${s.color}"/>`
+    svg += `<text x="${lx + 10}" y="${ly}" fill="#64748b" font-size="${K.LEGEND_FONT}">${SHORT[s.name] || s.name}</text>`
+  })
+
+  // val-labels drawn last: SVG has no z-index, so document order = paint order,
+  // and the hover tooltip must sit on top of the legend.
   timestamps.forEach((ts, i) => {
     const dotsAtI = series.map(s => s.pts.find(p => p.x === i)).filter(Boolean)
     if (!dotsAtI.length) return
@@ -83,18 +97,6 @@ export function buildChartHtml(ctx, group, names, chartTitle) {
       row++
     })
     svg += `</g>`
-  })
-
-  const legX = gridEnd + K.LEGEND_GAP
-  const legY0 = K.LEGEND_TOP
-  const legH = series.length * K.LEGEND_SPACING
-  const LEGEND_PAD = 8
-  svg += `<rect x="${legX - LEGEND_PAD}" y="${legY0 - K.LEGEND_SPACING + LEGEND_PAD / 2}" width="${P.r - K.LEGEND_GAP}" height="${legH + LEGEND_PAD}" rx="0" fill="white" stroke="#e2e8f0"/>`
-  series.forEach((s, i) => {
-    const lx = legX
-    const ly = legY0 + i * K.LEGEND_SPACING
-    svg += `<circle cx="${lx}" cy="${ly - 4}" r="${K.LEGEND_DOT_R}" fill="${s.color}"/>`
-    svg += `<text x="${lx + 10}" y="${ly}" fill="#64748b" font-size="${K.LEGEND_FONT}">${SHORT[s.name] || s.name}</text>`
   })
 
   return `<div class="copyable chart-card"><button class="copy-btn" onclick="copyEl(this.parentElement)">copy</button><div class="chart-scroll"><svg class="chart-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${svg}</svg></div></div>`
