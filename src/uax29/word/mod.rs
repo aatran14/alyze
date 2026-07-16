@@ -245,8 +245,9 @@ const WORD_BREAK_CONTRIB: [TokenProperties; WordBreakProperty::NUM_VARIANTS] = {
 
 /// Per-ASCII-byte info for the fast-path scan and the single-char branch.
 /// - Bit 7 (`ASCII_WORD_CONTINUE`): byte is part of a word-like run (`[a-zA-Z0-9_]`).
-/// - Low bits: the byte's `TokenProperties` contribution (currently just `WORD_LIKE_MASK` for
-///   `[a-zA-Z0-9]`, since underscore continues the run but isn't itself word-like).
+/// - Low bits: the byte's `TokenProperties` contribution (`WORD_LIKE_MASK` for `[a-zA-Z0-9]`,
+///   since underscore continues the run but isn't itself word-like, plus
+///   `HAS_ASCII_UPPER_MASK` for `[A-Z]`).
 const ASCII_WORD_CONTINUE: u8 = 0b1000_0000;
 const ASCII_BYTE_INFO: [u8; 128] = {
     let mut t = [0u8; 128];

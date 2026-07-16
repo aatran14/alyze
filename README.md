@@ -16,20 +16,20 @@ Numbers are the median of 16 samples.
 
 | Benchmark                | Throughput |
 | ------------------------ | ---------- |
-| word break               | 508 MiB/s  |
-| word break + `word_like` | 490 MiB/s  |
-| sentence break           | 465 MiB/s  |
+| word break               | 529 MiB/s  |
+| word break + `word_like` | 491 MiB/s  |
+| sentence break           | 468 MiB/s  |
 
 **Analysis** (`benches/wikipedia.rs`, `analysis` group) — each row adds one stage to the pipeline,
 so the deltas approximate each filter's marginal cost:
 
 | Pipeline                                              | Throughput |
 | ----------------------------------------------------- | ---------- |
-| tokenize only (case sensitive)                        | 415 MiB/s  |
-| + lowercase                                           | 324 MiB/s  |
-| + stopword removal (English)                          | 283 MiB/s  |
-| + stemming (English)                                  | 132 MiB/s  |
-| full (max length + stopwords + stemming + ASCII fold) | 126 MiB/s  |
+| tokenize only (case sensitive)                        | 402 MiB/s  |
+| + lowercase                                           | 375 MiB/s  |
+| + stopword removal (English)                          | 316 MiB/s  |
+| + stemming (English)                                  | 139 MiB/s  |
+| full (max length + stopwords + stemming + ASCII fold) | 134 MiB/s  |
 
 Reproduce with `cargo bench --bench wikipedia` (first run downloads the Wikipedia dataset into
 `.cache/`).
