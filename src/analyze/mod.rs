@@ -218,8 +218,14 @@ impl Analyzer {
                 }
 
                 // Lowercasing
-                if !self.options.case_sensitive {
+                if !self.options.case_sensitive && (!props.is_ascii() || props.has_ascii_upper()) {
                     token_text.lowercase_in_place(props.is_ascii());
+                } else if !self.options.case_sensitive {
+                    // Skipped because props said all-lowercase ASCII; verify that holds.
+                    debug_assert!(
+                        !token_text.as_str().bytes().any(|b| b.is_ascii_uppercase()),
+                        "has_ascii_upper was false but token contains uppercase ASCII"
+                    );
                 }
 
                 // Stopword removal

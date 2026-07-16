@@ -21,6 +21,7 @@ pub struct TokenProperties(u8);
 impl TokenProperties {
     const WORD_LIKE_MASK: u8 = 0b0000_0001;
     const NON_ASCII_MASK: u8 = 0b0000_0010;
+    const HAS_ASCII_UPPER_MASK: u8 = 0b0000_0100;
 
     pub(crate) const NON_ASCII: Self = Self(Self::NON_ASCII_MASK);
     pub(crate) const WORD_LIKE: Self = Self(Self::WORD_LIKE_MASK);
@@ -39,6 +40,12 @@ impl TokenProperties {
     // `is_ascii()` returns true when the bit is unset (vacuously true for the empty span).
     pub fn is_ascii(&self) -> bool {
         self.0 & Self::NON_ASCII_MASK == 0
+    }
+
+    // Stored disjunctively: a single ASCII uppercase byte (A–Z) in the span sets this bit.
+    // `has_ascii_upper()` returns true when the bit is set (vacuously false for the empty span).
+    pub fn has_ascii_upper(&self) -> bool {
+        self.0 & Self::HAS_ASCII_UPPER_MASK != 0
     }
 }
 
@@ -238,16 +245,20 @@ const WORD_BREAK_CONTRIB: [TokenProperties; WordBreakProperty::NUM_VARIANTS] = {
 
 /// Per-ASCII-byte info for the fast-path scan and the single-char branch.
 /// - Bit 7 (`ASCII_WORD_CONTINUE`): byte is part of a word-like run (`[a-zA-Z0-9_]`).
-/// - Low bits: the byte's `TokenProperties` contribution (currently just `WORD_LIKE_MASK` for
-///   `[a-zA-Z0-9]`, since underscore continues the run but isn't itself word-like).
+/// - Low bits: the byte's `TokenProperties` contribution (`WORD_LIKE_MASK` for `[a-zA-Z0-9]`,
+///   since underscore continues the run but isn't itself word-like, plus
+///   `HAS_ASCII_UPPER_MASK` for `[A-Z]`).
 const ASCII_WORD_CONTINUE: u8 = 0b1000_0000;
 const ASCII_BYTE_INFO: [u8; 128] = {
     let mut t = [0u8; 128];
     let mut i = 0u8;
     loop {
         t[i as usize] = match i {
-            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => {
-                ASCII_WORD_CONTINUE | TokenProperties::WORD_LIKE_MASK
+            b'a'..=b'z' | b'0'..=b'9' => ASCII_WORD_CONTINUE | TokenProperties::WORD_LIKE_MASK,
+            b'A'..=b'Z' => {
+                ASCII_WORD_CONTINUE
+                    | TokenProperties::WORD_LIKE_MASK
+                    | TokenProperties::HAS_ASCII_UPPER_MASK
             }
             b'_' => ASCII_WORD_CONTINUE,
             _ => 0,
@@ -414,6 +425,30 @@ mod tests {
         // The sharp case: the breaking char is non-ASCII but starts the *next* token, so "ab"
         // must still report is_ascii=true and "🛑" must report is_ascii=false.
         assert_props("ab🛑", vec![(0, true), (2, true), (6, false)]);
+    }
+
+    #[test]
+    fn tokenizer_has_ascii_upper_sanity() {
+        // Each emit reports properties of the span just closed; the leading boundary at 0 has
+        // no preceding span, so has_ascii_upper is vacuously false.
+        fn assert_has_ascii_upper(s: &str, expected: Vec<(usize, bool)>) {
+            let mut got: Vec<(usize, bool)> = Vec::new();
+            tokenize(s, Options::default(), |bp, props| {
+                got.push((bp, props.has_ascii_upper()));
+                true
+            });
+            assert_eq!(got, expected, "input: {:?}", s);
+        }
+
+        assert_has_ascii_upper("hello", vec![(0, false), (5, false)]);
+        assert_has_ascii_upper("Hello", vec![(0, false), (5, true)]);
+        assert_has_ascii_upper("HELLO", vec![(0, false), (5, true)]);
+        assert_has_ascii_upper("aB", vec![(0, false), (2, true)]);
+        assert_has_ascii_upper("123", vec![(0, false), (3, false)]);
+
+        // The breaking char is non-ASCII but starts the *next* token, so "ab" must still
+        // report has_ascii_upper=false.
+        assert_has_ascii_upper("ab🛑", vec![(0, false), (2, false), (6, false)]);
     }
 
     fn assert_word_like(s: &str, expected: Vec<(usize, bool)>) {
