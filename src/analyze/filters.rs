@@ -1713,8 +1713,8 @@ mod tests {
             ("", ""),
             ("cafe", "cafe"),
             ("café", "cafe"),
-            ("ÄÖÜ", "AOU"),
-            ("straße", "strasse"), // ß → ss
+            ("ÄÖÜ", "AOU"), // fold doesn't lowercase; the pipeline lowercases after folding
+            ("straße", "strasse"), // ß folds to two letters, so the string grows. byte number remains the same.
             ("Ææ", "AEae"),
             ("ﬀﬁﬂ", "fffifl"), // ligatures
             ("馬", "馬"),       // no sensible ASCII equivalent
