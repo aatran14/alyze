@@ -11,7 +11,7 @@ description: "The design rule behind every fast path in the codebase: skip prova
 
 If you're not sure what's actually happening to a string before reading this page, start with ["What happens to your data, in plain English"](../OVERVIEW.md#what-happens-to-your-data-in-plain-english) on the Overview. This page is about *why the fast versions of those steps are safe*, not what the steps are.
 
-Alyze's performance work follows one rule, stated directly in the codebase's own writeup: *"not faster differently, faster identically."* Every fast path in the [Tokenizer](../modules/tokenizer.md) and [Analyzer](../modules/analyzer.md) is provably byte-identical to the slow path it bypasses. This matters because tokenization runs on both the write path and the query path: if a fast path drifted from the DFA's real output on even one edge case, a document that should match a query would silently fail to, with no error and no crash. See [alyze: you can't make tokenization faster, only do less of it](../../alyze-technical-blog.md) for the full writeup this page summarizes.
+Alyze's performance work follows one rule, stated directly in the codebase's own writeup: *"not faster differently, faster identically."* Every fast path in the [Tokenizer](../modules/tokenizer.md) and [Analyzer](../modules/analyzer.md) is provably byte-identical to the slow path it bypasses. This matters because tokenization runs on both the write path and the query path: if a fast path drifted from the DFA's real output on even one edge case, a document that should match a query would silently fail to, with no error and no crash.
 
 ## The napkin math behind "fast"
 
