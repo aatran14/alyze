@@ -6911,3 +6911,75 @@ analysis/+ lowercase,c4a-standard-16,208.29,2026-09-24T00:00:00Z,115e5d9
 analysis/+ stopwords,c4a-standard-16,184.93,2026-09-24T00:00:00Z,115e5d9
 analysis/+ stemming,c4a-standard-16,83.626,2026-09-24T00:00:00Z,115e5d9
 analysis/full pipeline,c4a-standard-16,82.264,2026-09-24T00:00:00Z,115e5d9
+wikipedia/word break,aws-c7a.4xlarge,318.37,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,aws-c7a.4xlarge,312.02,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,aws-c7a.4xlarge,367.45,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),aws-c7a.4xlarge,229.63,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,aws-c7a.4xlarge,207.97,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,aws-c7a.4xlarge,179.63,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,aws-c7a.4xlarge,77.299,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,aws-c7a.4xlarge,75.314,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,aws-c7g.4xlarge,267.81,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,aws-c7g.4xlarge,249.46,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,aws-c7g.4xlarge,272.35,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),aws-c7g.4xlarge,178.29,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,aws-c7g.4xlarge,165.10,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,aws-c7g.4xlarge,143.65,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,aws-c7g.4xlarge,61.779,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,aws-c7g.4xlarge,60.388,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,aws-c7i.4xlarge,277.87,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,aws-c7i.4xlarge,260.41,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,aws-c7i.4xlarge,342.85,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),aws-c7i.4xlarge,206.18,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,aws-c7i.4xlarge,192.75,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,aws-c7i.4xlarge,162.10,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,aws-c7i.4xlarge,74.831,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,aws-c7i.4xlarge,71.932,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,azure-Standard_D8ads_v6,300.04,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,azure-Standard_D8ads_v6,309.72,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,azure-Standard_D8ads_v6,369.62,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),azure-Standard_D8ads_v6,229.70,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,azure-Standard_D8ads_v6,207.62,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,azure-Standard_D8ads_v6,177.07,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,azure-Standard_D8ads_v6,81.838,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,azure-Standard_D8ads_v6,78.481,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,azure-Standard_D8pds_v6,337.98,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,azure-Standard_D8pds_v6,314.24,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,azure-Standard_D8pds_v6,385.39,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),azure-Standard_D8pds_v6,218.99,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,azure-Standard_D8pds_v6,202.24,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,azure-Standard_D8pds_v6,182.03,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,azure-Standard_D8pds_v6,73.009,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,azure-Standard_D8pds_v6,74.594,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,azure-Standard_D8ds_v6,233.21,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,azure-Standard_D8ds_v6,218.76,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,azure-Standard_D8ds_v6,287.76,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),azure-Standard_D8ds_v6,177.88,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,azure-Standard_D8ds_v6,160.18,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,azure-Standard_D8ds_v6,134.31,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,azure-Standard_D8ds_v6,63.791,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,azure-Standard_D8ds_v6,60.880,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,c4d-standard-16,352.84,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,c4d-standard-16,338.96,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,c4d-standard-16,397.87,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),c4d-standard-16,254.82,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,c4d-standard-16,240.45,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,c4d-standard-16,198.85,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,c4d-standard-16,97.768,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,c4d-standard-16,93.518,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,c4a-standard-16,358.91,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,c4a-standard-16,335.31,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,c4a-standard-16,326.15,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),c4a-standard-16,225.02,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,c4a-standard-16,208.94,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,c4a-standard-16,185.20,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,c4a-standard-16,84.284,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,c4a-standard-16,82.894,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break,c4-standard-16,252.14,2026-09-25T00:00:00Z,115e5d9
+wikipedia/word break + word_like,c4-standard-16,235.41,2026-09-25T00:00:00Z,115e5d9
+wikipedia/sentence break,c4-standard-16,310.42,2026-09-25T00:00:00Z,115e5d9
+analysis/tokenize only (case sensitive),c4-standard-16,187.35,2026-09-25T00:00:00Z,115e5d9
+analysis/+ lowercase,c4-standard-16,175.03,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stopwords,c4-standard-16,146.75,2026-09-25T00:00:00Z,115e5d9
+analysis/+ stemming,c4-standard-16,67.701,2026-09-25T00:00:00Z,115e5d9
+analysis/full pipeline,c4-standard-16,65.563,2026-09-25T00:00:00Z,115e5d9
